@@ -1,0 +1,28 @@
+name: istio-beacon
+type: charm
+title: Istio Beacon
+summary: A beacon charm used for joining the Istio service mesh.
+
+description: |
+  A single sentence that says what the charm is, concisely and memorably.
+
+  A paragraph of one to three short sentences, that describe what the charm does.
+
+  A third paragraph that explains what need the charm meets.
+
+  Finally, a paragraph that describes whom the charm is useful for.
+
+assumes:
+  - k8s-api
+
+bases:
+  - build-on:
+    - name: ubuntu
+      channel: "22.04"
+    run-on:
+    - name: ubuntu
+      channel: "22.04"
+
+provides:
+  service-mesh:
+    interface: service_mesh
