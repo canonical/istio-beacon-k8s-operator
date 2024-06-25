@@ -1,4 +1,4 @@
-name: istio-beacon
+name: istio-beacon-k8s
 type: charm
 title: Istio Beacon
 summary: A beacon charm used for joining the Istio service mesh.
