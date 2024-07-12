@@ -35,8 +35,8 @@ class IstioBeaconCharm(ops.CharmBase):
         manifest.
         """
         for relation in self.model.relations["service-mesh"]:
+            logger.error(relation.data[relation.app])
             # Update the mesh
-            pass
         self.unit.status = ops.ActiveStatus()
 
 
