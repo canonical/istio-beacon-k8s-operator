@@ -10,7 +10,7 @@ To add service mesh support to your charm, instantiate a ServiceMeshConsumer obj
 `__init__` method of your charm:
 
 ```
-from charms.istio_beacon_k8s.v0.service_mesh import IsCrossModelError, Policy, ServiceMeshConsumer
+from charms.istio_beacon_k8s.v0.service_mesh import Policy, ServiceMeshConsumer
 
 ...
 self._mesh = ServiceMeshConsumer(
