@@ -48,7 +48,7 @@ class Policy(pydantic.BaseModel):
 
 
 class ServiceMeshConsumer(Object):
-    """Class for managing the consumer side of the service_mesh relation interface."""
+    """Class used for joining a service mesh."""
 
     def __init__(
         self,
