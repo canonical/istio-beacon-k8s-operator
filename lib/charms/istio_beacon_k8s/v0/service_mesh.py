@@ -13,12 +13,15 @@ To add service mesh support to your charm, instantiate a ServiceMeshConsumer obj
 from charms.istio_beacon_k8s.v0.service_mesh import Policy, ServiceMeshConsumer
 
 ...
-self._mesh = ServiceMeshConsumer(
-    self,
-    policies=[
-        Policy(relation="logging", endpoints=[f"*:{HTTP_LISTEN_PORT}"]),
-    ],
-)
+try:
+    self._mesh = ServiceMeshConsumer(
+        self,
+        policies=[
+            Policy(relation="logging", endpoints=[f"*:{HTTP_LISTEN_PORT}"]),
+        ],
+    )
+except ops.TooManyRelatedAppsError as e:
+    self.unit.status = BlockedStatus(e)
 ```
 """
 
@@ -63,7 +66,7 @@ class ServiceMeshConsumer(Object):
         """
         super().__init__(charm, mesh_relation_name)
         self._charm = charm
-        self._relations = self._charm.model.relations[mesh_relation_name]
+        self._relation = self._charm.model.get_relation[mesh_relation_name]
         self._policies = policies or []
         self.framework.observe(
             self._charm.on[mesh_relation_name].relation_created, self._relations_changed
@@ -109,8 +112,7 @@ class ServiceMeshConsumer(Object):
             "model": self._my_namespace(),
             "policies": policies,
         }
-        for rel in self._relations:
-            rel.data[self._charm.app]["mesh_data"] = json.dumps(mesh_rel_data)
+        self._relation.data[self._charm.app]["mesh_data"] = json.dumps(mesh_rel_data)
 
     def _my_namespace(self):
         """Return the namespace of the running charm."""
