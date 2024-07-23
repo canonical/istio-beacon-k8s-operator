@@ -25,6 +25,7 @@ except ops.TooManyRelatedAppsError as e:
 ```
 """
 
+import enum
 import json
 import logging
 import re
@@ -37,14 +38,33 @@ LIBID = "3f40cb7e3569454a92ac2541c5ca0a0c"  # Never change this
 LIBAPI = 0
 LIBPATCH = 1
 
+PYDEPS = ["pydantic"]
+
 logger = logging.getLogger(__name__)
+
+
+class Method(str, enum.Enum):
+    """HTTP method."""
+
+    connect = "CONNECT"
+    delete = "DELETE"
+    get = "GET"
+    head = "HEAD"
+    options = "OPTIONS"
+    patch = "PATCH"
+    post = "POST"
+    put = "PUT"
+    trace = "TRACE"
 
 
 class Policy(pydantic.BaseModel):
     """Data type for holding a service mesh policy."""
 
     relation: str
-    endpoints: List[str]
+    hosts: List[str]
+    ports: List[int]
+    methods: List[Method]
+    paths: List[str]
 
 
 class ServiceMeshConsumer(Object):
