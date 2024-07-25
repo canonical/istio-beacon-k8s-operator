@@ -17,7 +17,18 @@ try:
     self._mesh = ServiceMeshConsumer(
         self,
         policies=[
-            Policy(relation="logging", endpoints=[f"*:{HTTP_LISTEN_PORT}"]),
+            Policy(
+                relation="logging",
+                endpoints=[
+                    Endpoint(
+                        hosts=[self._my_host_name],
+                        ports=[HTTP_LISTEN_PORT],
+                        methods=["GET"],
+                        paths=["/foo"],
+                    ),
+                ],
+                service=self._my_k8s_service(),
+            ),
         ],
     )
 except ops.TooManyRelatedAppsError as e:
