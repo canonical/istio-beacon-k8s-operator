@@ -133,7 +133,7 @@ class ServiceMeshConsumer(Object):
                         {
                             "app_name": relation.app.name,
                             "namespace": self._my_namespace(),
-                            "endpoints": policy.endpoints,
+                            "endpoints": [endpoint.model_dump() for endpoint in policy.endpoints],
                             "service": policy.service,
                         }
                     )
