@@ -57,14 +57,20 @@ class Method(str, enum.Enum):
     trace = "TRACE"
 
 
-class Policy(pydantic.BaseModel):
-    """Data type for holding a service mesh policy."""
+class Endpoint(pydantic.BaseModel):
+    """Data type for a policy endpoint."""
 
-    relation: str
     hosts: List[str]
     ports: List[int]
     methods: List[Method]
     paths: List[str]
+
+
+class Policy(pydantic.BaseModel):
+    """Data type for holding a service mesh policy."""
+
+    relation: str
+    endpoints: List[Endpoint]
 
 
 class ServiceMeshConsumer(Object):
