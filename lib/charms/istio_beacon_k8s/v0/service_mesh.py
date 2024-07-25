@@ -71,6 +71,7 @@ class Policy(pydantic.BaseModel):
 
     relation: str
     endpoints: List[Endpoint]
+    service: Optional[str]
 
 
 class ServiceMeshConsumer(Object):
@@ -133,6 +134,7 @@ class ServiceMeshConsumer(Object):
                             "app_name": relation.app.name,
                             "namespace": self._my_namespace(),
                             "endpoints": policy.endpoints,
+                            "service": policy.service,
                         }
                     )
         mesh_rel_data = {
