@@ -92,7 +92,7 @@ class ServiceMeshConsumer(Object):
         """
         super().__init__(charm, mesh_relation_name)
         self._charm = charm
-        self._relation = self._charm.model.get_relation[mesh_relation_name]
+        self._relation = self._charm.model.get_relation(mesh_relation_name)
         self._policies = policies or []
         self.framework.observe(
             self._charm.on[mesh_relation_name].relation_created, self._relations_changed
@@ -115,6 +115,8 @@ class ServiceMeshConsumer(Object):
         Gathers information from all relations of the charm and updates the mesh appropriately to
         allow communication.
         """
+        if self._relation is None:
+            return
         logger.debug("Updating service mesh policies.")
         policies = []
         cmr_matcher = re.compile(r"remote\-[a-f0-9]+")
