@@ -3,7 +3,7 @@
 
 """#Service Mesh Library.
 
-The service mesh library is used to facilitate adding you charmed application to a service mesh.
+The service mesh library is used to facilitate adding your charmed application to a service mesh.
 The library leverages the `service_mesh` interface and the `cross_model_mesh` interface
 
 To add service mesh support to your charm, instantiate a ServiceMeshConsumer object in the
