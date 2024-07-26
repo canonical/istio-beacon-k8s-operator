@@ -36,3 +36,10 @@ bases:
 provides:
   service-mesh:
     interface: service_mesh
+
+parts:
+  charm:
+    charm-binary-python-packages:
+      # Pydantic is not actually used by the lib but charmcraft install pydeps from libs even if
+      # they are not used.
+      - pydantic>2.0
