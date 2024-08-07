@@ -171,8 +171,8 @@ class IstioBeaconCharm(ops.CharmBase):
         try:
             namespace = self.lightkube_client.get(Namespace, self.model.name)
         except ApiError as e:
-                logger.error(f"Error checking namespace labels {e}")
-                return
+            logger.error(f"Error checking namespace labels {e}")
+            return
 
         if add_labels:
             labels_to_add = {
@@ -196,7 +196,7 @@ class IstioBeaconCharm(ops.CharmBase):
         try:
             self.lightkube_client.patch(Namespace, self.model.name, namespace)
         except ApiError as e:
-                logger.error(f"Error patching istio labels {e}")  
+            logger.error(f"Error patching istio labels {e}")
 
 
 if __name__ == "__main__":
