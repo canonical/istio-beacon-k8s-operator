@@ -9,16 +9,15 @@ import logging
 import time
 
 import ops
-from lightkube_extensions.batch import KubernetesResourceManager, create_charm_default_labels
-from lightkube.generic_resource import create_namespaced_resource
 from lightkube.core.client import Client
-from models import Metadata, Listener, IstioWaypointSpec, IstioWaypointResource, AllowedRoutes
-from lightkube.models.meta_v1 import ObjectMeta
-from ops.model import ActiveStatus, MaintenanceStatus, BlockedStatus
-from ops import Relation
-from lightkube.resources.apps_v1 import Deployment
 from lightkube.core.exceptions import ApiError
+from lightkube.generic_resource import create_namespaced_resource
+from lightkube.models.meta_v1 import ObjectMeta
+from lightkube.resources.apps_v1 import Deployment
 from lightkube.resources.core_v1 import Namespace
+from lightkube_extensions.batch import KubernetesResourceManager, create_charm_default_labels
+from models import AllowedRoutes, IstioWaypointResource, IstioWaypointSpec, Listener, Metadata
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +59,7 @@ class IstioBeaconCharm(ops.CharmBase):
 
     def _on_remove(self, _):
         """Event handler for remove."""
-        self._remove_labels()
+        self._update_labels(False)
         krm = self._get_waypoint_resource_manager()
         krm.delete()
 
@@ -117,9 +116,9 @@ class IstioBeaconCharm(ops.CharmBase):
     def _sync_all_resources(self):
         self.unit.status = MaintenanceStatus("Validating waypoint readiness")
         self._sync_waypoint_resources()
-        if self._is_ready():
+        if not self._is_ready():
             self.unit.status = BlockedStatus(
-                f"Waypoint's k8s deployment not ready, is istio properly installed?"
+                "Waypoint's k8s deployment not ready, is istio properly installed?"
             )
             return
         self.unit.status = ActiveStatus()
@@ -132,7 +131,7 @@ class IstioBeaconCharm(ops.CharmBase):
                 labels={"istio.io/waypoint-for": "service"},
             ),
             spec=IstioWaypointSpec(
-                gatewayClassName=f"istio-waypoint",
+                gatewayClassName="istio-waypoint",
                 listeners=[
                     Listener(
                         name="mesh",
@@ -157,31 +156,48 @@ class IstioBeaconCharm(ops.CharmBase):
         resource_to_append = self._construct_waypoint()
         resources_list.append(resource_to_append)
         krm.reconcile(resources_list)
-        namespace = self.lightkube_client.get(Namespace, self.model.name)
 
         if self.config["model-on-mesh"]:
-            labels = {
+            self._update_labels()
+        else:
+            self._update_labels(False)
+
+    def _update_labels(self, add_labels=True):
+        """Add or remove specific labels from a namespace based on the add_labels flag.
+
+        Args:
+            add_labels (bool): If True, add labels; if False, remove labels.
+        """
+        try:
+            namespace = self.lightkube_client.get(Namespace, self.model.name)
+        except ApiError as e:
+                logger.error(f"Error checking namespace labels {e}")
+                return
+
+        if add_labels:
+            labels_to_add = {
                 "istio.io/use-waypoint": f"{self.app.name}-{self.model.name}-waypoint",
                 "istio.io/dataplane-mode": "ambient",
             }
-
-            namespace.metadata.labels.update(labels)
-            self.lightkube_client.patch(Namespace, self.model.name, namespace)
+            if namespace.metadata and namespace.metadata.labels:
+                namespace.metadata.labels.update(labels_to_add)
         else:
-            self._remove_labels()
+            labels_to_remove = {"istio.io/use-waypoint": None, "istio.io/dataplane-mode": None}
 
-    def _remove_labels(self):
-        namespace = self.lightkube_client.get(Namespace, self.model.name)
-        """Remove specific labels from a namespace if they exist."""
-        labels_to_remove = {"istio.io/use-waypoint": None, "istio.io/dataplane-mode": None}
-
-        # Check if the labels exist and remove them by setting to None
-        if namespace.metadata.labels and (
-            "istio.io/use-waypoint" in namespace.metadata.labels
-            or "istio.io/dataplane-mode" in namespace.metadata.labels
-        ):
-            namespace.metadata.labels.update(labels_to_remove)
+            if (
+                namespace.metadata
+                and namespace.metadata.labels
+                and (
+                    "istio.io/use-waypoint" in namespace.metadata.labels
+                    or "istio.io/dataplane-mode" in namespace.metadata.labels
+                )
+            ):
+                namespace.metadata.labels.update(labels_to_remove)
+        try:
             self.lightkube_client.patch(Namespace, self.model.name, namespace)
+        except ApiError as e:
+                logger.error(f"Error patching istio labels {e}")  
+
 
 if __name__ == "__main__":
     ops.main(IstioBeaconCharm)  # type: ignore

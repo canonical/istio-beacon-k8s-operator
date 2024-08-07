@@ -57,7 +57,7 @@ config:
         waypoint controller. If the deployment does not become ready within this time, 
         charm will go into blocked state.
     model-on-mesh:
-      type: bool
-      default: False
+      type: boolean
+      default: false
       description: >
         Add the whole model on the mesh and connect it to the waypoint
