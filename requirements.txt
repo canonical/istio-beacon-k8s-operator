@@ -1,1 +1,7 @@
 ops ~= 2.5
+pydantic>=2
+
+# A collection of helpers and shared code for using Lightkube
+# Code: https://github.com/canonical/lightkube-extensions
+# Deps: charm
+lightkube-extensions @ git+https://github.com/canonical/lightkube-extensions.git@main
