@@ -6,6 +6,8 @@
 The service mesh library is used to facilitate adding your charmed application to a service mesh.
 The library leverages the `service_mesh` and `cross_model_mesh` interfaces.
 
+##Consumer
+
 To add service mesh support to your charm, instantiate a ServiceMeshConsumer object in the
 `__init__` method of your charm:
 
@@ -34,13 +36,41 @@ try:
 except ops.TooManyRelatedAppsError as e:
     self.unit.status = BlockedStatus(e)
 ```
+
+You will then receive the labels which you need to add your product to the mesh:
+```
+def _on_mesh_relation_changed(self, event):
+    self._apply_labels to pods(self._mesh.labels())
+
+##Provider
+
+To provide a service mesh, instantiate the ServiceMeshProvider object in the __init__ method
+of your charm:
+```
+from charms.istio_beacon_k8s.v0.service_mesh import Policy, ServiceMeshProvider
+
+...
+self._mesh = ServiceMeshProvider(
+    charm = self,
+    labels = self._get_mesh_labels(),
+    mesh_relation_name = "service-mesh",
+)
+```
+
+The labels argument should be a dict containing the Kubernetes labels which the client charm needs
+to apply to join the mesh.
+
+You can then use the relation data to build your authorization policies:
+```
+self._build_authorization_policies(self._mesh.mesh_info())
+```
 """
 
 import enum
 import json
 import logging
 import re
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import pydantic
 from ops import CharmBase, Object
@@ -160,3 +190,50 @@ class ServiceMeshConsumer(Object):
         # This method currently assumes the namespace is the same as the model name. We
         # should consider if there is a better way to do this.
         return self._charm.model.name
+
+    def labels(self):
+        """Labels required for a pod to join the mesh."""
+        if self._relation is None:
+            return {}
+        return json.loads(self._relation.data[self._relation.app]["labels"])
+
+
+class ServiceMeshProvider(Object):
+    """Provide a service mesh to applications."""
+
+    def __init__(
+        self, charm: CharmBase, labels: Dict[str, str], mesh_relation_name: str = "service-mesh"
+    ):
+        """Class used to provide information needed to join the service mesh.
+
+        Args:
+            charm: The charm instantiating this object.
+            mesh_relation_name: The relation name as defined in metadata.yaml or charmcraft.yaml
+                for the relation which uses the service_mesh interface.
+            labels: The labels which related applications need to apply to use the mesh.
+        """
+        super().__init__(charm, mesh_relation_name)
+        self._charm = charm
+        self._relation_name = mesh_relation_name
+        self._labels = labels
+        self.framework.observe(
+            self._charm.on[mesh_relation_name].relation_created, self._relation_created
+        )
+
+    def _relation_created(self, _event):
+        self.update_relations()
+
+    def update_relations(self):
+        """Update all relations with the labels needed to use the mesh."""
+        rel_data = json.dumps(self._labels)
+        for relation in self._charm.model.relations[self._relation_name]:
+            relation.data[self._charm.app]["labels"] = rel_data
+
+    def mesh_info(self):
+        """Return the relation data used to define authorization policies on the mesh."""
+        mesh_info = []
+        for relation in self._charm.model.relations[self._relation_name]:
+            rel_data = json.loads(relation.data[relation.app]["mesh_data"])
+            rel_data["policies"] = [Policy.parse_obj(p) for p in rel_data["policies"]]
+            mesh_info.append(rel_data)
+        return mesh_info
