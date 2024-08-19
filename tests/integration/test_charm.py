@@ -52,7 +52,6 @@ async def test_mesh_config(ops_test: OpsTest):
 
     # Not the model name just an alias
     istio_beacon = ops_test.models.get("beacon")
-    # await istio_beacon.model.set_config({"update-status-hook-interval": "30s"})
     await istio_beacon.model.applications[APP_NAME].set_config({"model-on-mesh": "true"})
     await istio_beacon.model.wait_for_idle(
         [APP_NAME], status="active", timeout=1000, raise_on_error=False

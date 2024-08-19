@@ -13,6 +13,7 @@ async def validate_labels(ops_test: OpsTest, app_name: str, should_be_present: b
     expected_labels = {
         "istio.io/use-waypoint": f"{app_name}-{namespace_name}-waypoint",
         "istio.io/dataplane-mode": "ambient",
+        "istio.io/use-waypoint/managed-by": f"{app_name}-{namespace_name}",
     }
 
     for label, expected_value in expected_labels.items():

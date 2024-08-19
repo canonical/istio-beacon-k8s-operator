@@ -60,7 +60,7 @@ class IstioBeaconCharm(ops.CharmBase):
 
     def _on_remove(self, _):
         """Event handler for remove."""
-        self._update_labels(False)
+        self._remove_labels()
         krm = self._get_waypoint_resource_manager()
         krm.delete()
 
@@ -160,45 +160,77 @@ class IstioBeaconCharm(ops.CharmBase):
         krm.reconcile(resources_list)
 
         if self.config["model-on-mesh"]:
-            self._update_labels()
+            self._add_labels()
         else:
-            self._update_labels(False)
+            self._remove_labels()
 
-    def _update_labels(self, add_labels=True):
-        """Add or remove specific labels from a namespace based on the add_labels flag.
-
-        Args:
-            add_labels (bool): If True, add labels; if False, remove labels.
-        """
+    def _get_namespace(self):
+        """Retrieve the namespace object."""
         try:
-            namespace = self.lightkube_client.get(Namespace, self.model.name)
+            return self.lightkube_client.get(Namespace, self.model.name)
         except ApiError as e:
-            logger.error(f"Error checking namespace labels {e}")
-            return
+            logger.error(f"Error fetching namespace: {e}")
+            return None
 
-        if add_labels:
-            labels_to_add = {
-                "istio.io/use-waypoint": f"{self.app.name}-{self.model.name}-waypoint",
-                "istio.io/dataplane-mode": "ambient",
-            }
-            if namespace.metadata and namespace.metadata.labels:
-                namespace.metadata.labels.update(labels_to_add)
-        else:
-            labels_to_remove = {"istio.io/use-waypoint": None, "istio.io/dataplane-mode": None}
-
-            if (
-                namespace.metadata
-                and namespace.metadata.labels
-                and (
-                    "istio.io/use-waypoint" in namespace.metadata.labels
-                    or "istio.io/dataplane-mode" in namespace.metadata.labels
-                )
-            ):
-                namespace.metadata.labels.update(labels_to_remove)
+    def _patch_namespace(self, namespace):
+        """Patch the namespace with updated labels."""
         try:
             self.lightkube_client.patch(Namespace, self.model.name, namespace)
         except ApiError as e:
-            logger.error(f"Error patching istio labels {e}")
+            logger.error(f"Error patching namespace: {e}")
+
+    def _add_labels(self):
+        """Add specific labels to the namespace."""
+        namespace = self._get_namespace()
+        if not namespace:
+            return
+
+        if namespace.metadata and namespace.metadata.labels:
+            existing_labels = namespace.metadata.labels
+            if (
+                existing_labels.get("istio.io/use-waypoint")
+                or existing_labels.get("istio.io/dataplane-mode")
+            ) and existing_labels.get(
+                "istio.io/use-waypoint/managed-by"
+            ) != f"{self.app.name}-{self.model.name}":
+                logger.error(
+                    f"Cannot add labels: Namespace '{self.model.name}' is already configured with Istio labels managed by another entity."
+                )
+                return
+
+            labels_to_add = {
+                "istio.io/use-waypoint": f"{self.app.name}-{self.model.name}-waypoint",
+                "istio.io/dataplane-mode": "ambient",
+                "istio.io/use-waypoint/managed-by": f"{self.app.name}-{self.model.name}",
+            }
+
+            namespace.metadata.labels.update(labels_to_add)
+            self._patch_namespace(namespace)
+
+    def _remove_labels(self):
+        """Remove specific labels from the namespace."""
+        namespace = self._get_namespace()
+        if not namespace:
+            return
+
+        if namespace.metadata and namespace.metadata.labels:
+            if (
+                namespace.metadata.labels.get("istio.io/use-waypoint/managed-by")
+                != f"{self.app.name}-{self.model.name}"
+            ):
+                logger.warning(
+                    f"Cannot remove labels: Namespace '{self.model.name}' has Istio labels managed by another entity."
+                )
+                return
+
+            labels_to_remove = {
+                "istio.io/use-waypoint": None,
+                "istio.io/dataplane-mode": None,
+                "istio.io/use-waypoint/managed-by": None,
+            }
+
+            namespace.metadata.labels.update(labels_to_remove)
+            self._patch_namespace(namespace)
 
 
 if __name__ == "__main__":
