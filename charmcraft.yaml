@@ -60,4 +60,5 @@ config:
       type: boolean
       default: false
       description: >
-        Add the whole model on the mesh and connect it to the waypoint
+        Add this charm's model to the service mesh. 
+        All charms in this model will automatically be added to the mesh.

@@ -16,8 +16,9 @@ from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.apps_v1 import Deployment
 from lightkube.resources.core_v1 import Namespace
 from lightkube_extensions.batch import KubernetesResourceManager, create_charm_default_labels
-from models import AllowedRoutes, IstioWaypointResource, IstioWaypointSpec, Listener, Metadata
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
+
+from models import AllowedRoutes, IstioWaypointResource, IstioWaypointSpec, Listener, Metadata
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +115,9 @@ class IstioBeaconCharm(ops.CharmBase):
         return True
 
     def _sync_all_resources(self):
+        if not self.unit.is_leader():
+            self.unit.status = BlockedStatus("Waypoint can only be provided on the leader unit.")
+            return
         self.unit.status = MaintenanceStatus("Validating waypoint readiness")
         self._sync_waypoint_resources()
         if not self._is_ready():
@@ -144,14 +148,12 @@ class IstioBeaconCharm(ops.CharmBase):
         )
         gateway_resource = RESOURCE_TYPES["Gateway"]
         return gateway_resource(
-            metadata=ObjectMeta.from_dict(gateway.metadata.dict()),
-            spec=gateway.spec.dict(),
+            metadata=ObjectMeta.from_dict(gateway.metadata.model_dump()),
+            spec=gateway.spec.model_dump(),
         )
 
     def _sync_waypoint_resources(self):
         resources_list = []
-        if not self.unit.is_leader():
-            raise RuntimeError("Waypoint can only be provided on the leader unit.")
         krm = self._get_waypoint_resource_manager()
         resource_to_append = self._construct_waypoint()
         resources_list.append(resource_to_append)

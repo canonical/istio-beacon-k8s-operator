@@ -39,20 +39,27 @@ async def test_deploy_dependencies(ops_test: OpsTest):
 
 @pytest.mark.abort_on_fail
 async def test_deployment(ops_test: OpsTest, istio_beacon_charm):
-    await ops_test.model.deploy(istio_beacon_charm, application_name=APP_NAME, trust=True),
-    await ops_test.model.wait_for_idle([APP_NAME], status="active", timeout=1000)
+
+    # Not the model name just an alias
+    await ops_test.track_model("beacon")
+    istio_beacon = ops_test.models.get("beacon")
+    await istio_beacon.model.deploy(istio_beacon_charm, application_name=APP_NAME, trust=True),
+    await istio_beacon.model.wait_for_idle([APP_NAME], status="active", timeout=1000)
 
 
 @pytest.mark.abort_on_fail
 async def test_mesh_config(ops_test: OpsTest):
-    await ops_test.model.applications[APP_NAME].set_config({"model-on-mesh": "true"})
-    await ops_test.model.wait_for_idle(
-        [APP_NAME], status="active", timeout=1000, raise_on_error=False
-    )
-    await validate_labels(ops_test, APP_NAME, should_be_present=True)
 
-    await ops_test.model.applications[APP_NAME].set_config({"model-on-mesh": "false"})
-    await ops_test.model.wait_for_idle(
+    # Not the model name just an alias
+    istio_beacon = ops_test.models.get("beacon")
+    await istio_beacon.model.applications[APP_NAME].set_config({"model-on-mesh": "true"})
+    await istio_beacon.model.wait_for_idle(
         [APP_NAME], status="active", timeout=1000, raise_on_error=False
     )
-    await validate_labels(ops_test, APP_NAME, should_be_present=False)
+    await validate_labels(istio_beacon, APP_NAME, should_be_present=True)
+
+    await istio_beacon.model.applications[APP_NAME].set_config({"model-on-mesh": "false"})
+    await istio_beacon.model.wait_for_idle(
+        [APP_NAME], status="active", timeout=1000, raise_on_error=False
+    )
+    await validate_labels(istio_beacon, APP_NAME, should_be_present=False)
