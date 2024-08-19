@@ -191,7 +191,7 @@ class IstioBeaconCharm(ops.CharmBase):
                 existing_labels.get("istio.io/use-waypoint")
                 or existing_labels.get("istio.io/dataplane-mode")
             ) and existing_labels.get(
-                "istio.io/use-waypoint/managed-by"
+                "istio.io.waypoint-managed-by"
             ) != f"{self.app.name}-{self.model.name}":
                 logger.error(
                     f"Cannot add labels: Namespace '{self.model.name}' is already configured with Istio labels managed by another entity."
@@ -201,7 +201,7 @@ class IstioBeaconCharm(ops.CharmBase):
             labels_to_add = {
                 "istio.io/use-waypoint": f"{self.app.name}-{self.model.name}-waypoint",
                 "istio.io/dataplane-mode": "ambient",
-                "istio.io/use-waypoint/managed-by": f"{self.app.name}-{self.model.name}",
+                "istio.io.waypoint-managed-by": f"{self.app.name}-{self.model.name}",
             }
 
             namespace.metadata.labels.update(labels_to_add)
@@ -215,7 +215,7 @@ class IstioBeaconCharm(ops.CharmBase):
 
         if namespace.metadata and namespace.metadata.labels:
             if (
-                namespace.metadata.labels.get("istio.io/use-waypoint/managed-by")
+                namespace.metadata.labels.get("istio.io.waypoint-managed-by")
                 != f"{self.app.name}-{self.model.name}"
             ):
                 logger.warning(
@@ -226,7 +226,7 @@ class IstioBeaconCharm(ops.CharmBase):
             labels_to_remove = {
                 "istio.io/use-waypoint": None,
                 "istio.io/dataplane-mode": None,
-                "istio.io/use-waypoint/managed-by": None,
+                "istio.io.waypoint-managed-by": None,
             }
 
             namespace.metadata.labels.update(labels_to_remove)
