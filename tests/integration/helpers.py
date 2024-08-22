@@ -1,3 +1,8 @@
+#!/usr/bin/env python3
+
+# Copyright 2024 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 from lightkube.core.client import Client
 from lightkube.resources.core_v1 import Namespace
 from pytest_operator.plugin import OpsTest
@@ -13,7 +18,7 @@ async def validate_labels(ops_test: OpsTest, app_name: str, should_be_present: b
     expected_labels = {
         "istio.io/use-waypoint": f"{app_name}-{namespace_name}-waypoint",
         "istio.io/dataplane-mode": "ambient",
-        "istio.io.waypoint-managed-by": f"{app_name}-{namespace_name}",
+        "charms.canonical.com/istio.io.waypoint.managed-by": f"{app_name}-{namespace_name}",
     }
 
     for label, expected_value in expected_labels.items():

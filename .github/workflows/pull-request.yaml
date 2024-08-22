@@ -5,6 +5,7 @@ on:
     branches:
       - main
 
+# TODO: Remove when #8 closes
 jobs:
   pull-request:
     name: PR

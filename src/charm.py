@@ -40,7 +40,7 @@ class IstioBeaconCharm(ops.CharmBase):
 
         self._lightkube_field_manager: str = self.app.name
         self._lightkube_client = None
-
+        self._managed_labels = f"{self.app.name}-{self.model.name}"
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.remove, self._on_remove)
         self.framework.observe(self.on["service-mesh"].relation_changed, self.on_mesh_changed)
@@ -83,7 +83,7 @@ class IstioBeaconCharm(ops.CharmBase):
             logger=logger,
         )
 
-    def _is_deployment_ready(self) -> bool:
+    def _is_waypoint_deployment_ready(self) -> bool:
         """Check if the deployment is ready after 10 attempts."""
         timeout = int(self.config["ready-timeout"])
         check_interval = 10
@@ -93,7 +93,7 @@ class IstioBeaconCharm(ops.CharmBase):
             try:
                 deployment = self.lightkube_client.get(
                     Deployment,
-                    name=f"{self.app.name}-{self.model.name}-waypoint",
+                    name=f"{self._managed_labels}-waypoint",
                     namespace=self.model.name,
                 )
                 if (
@@ -108,9 +108,9 @@ class IstioBeaconCharm(ops.CharmBase):
 
         return False
 
-    def _is_ready(self) -> bool:
+    def _is_waypoint_ready(self) -> bool:
 
-        if not self._is_deployment_ready():
+        if not self._is_waypoint_deployment_ready():
             return False
         return True
 
@@ -120,7 +120,7 @@ class IstioBeaconCharm(ops.CharmBase):
             return
         self.unit.status = MaintenanceStatus("Validating waypoint readiness")
         self._sync_waypoint_resources()
-        if not self._is_ready():
+        if not self._is_waypoint_ready():
             self.unit.status = BlockedStatus(
                 "Waypoint's k8s deployment not ready, is istio properly installed?"
             )
@@ -130,7 +130,7 @@ class IstioBeaconCharm(ops.CharmBase):
     def _construct_waypoint(self):
         gateway = IstioWaypointResource(
             metadata=Metadata(
-                name=f"{self.app.name}-{self.model.name}-waypoint",
+                name=f"{self._managed_labels}-waypoint",
                 namespace=self.model.name,
                 labels={"istio.io/waypoint-for": "service"},
             ),
@@ -183,40 +183,47 @@ class IstioBeaconCharm(ops.CharmBase):
         """Add specific labels to the namespace."""
         namespace = self._get_namespace()
         if not namespace:
+            raise RuntimeError(f"Error fetching namespace: {namespace}")
+
+        # Ensure metadata is not None
+        if namespace.metadata is None:
+            namespace.metadata = ObjectMeta()
+
+        # Ensure labels are a dictionary even if they are initially None or not set
+        if namespace.metadata.labels is None:
+            namespace.metadata.labels = {}
+
+        existing_labels = namespace.metadata.labels
+        if (
+            existing_labels.get("istio.io/use-waypoint")
+            or existing_labels.get("istio.io/dataplane-mode")
+        ) and existing_labels.get(
+            "charms.canonical.com/istio.io.waypoint.managed-by"
+        ) != f"{self._managed_labels}":
+            logger.error(
+                f"Cannot add labels: Namespace '{self.model.name}' is already configured with Istio labels managed by another entity."
+            )
             return
 
-        if namespace.metadata and namespace.metadata.labels:
-            existing_labels = namespace.metadata.labels
-            if (
-                existing_labels.get("istio.io/use-waypoint")
-                or existing_labels.get("istio.io/dataplane-mode")
-            ) and existing_labels.get(
-                "istio.io.waypoint-managed-by"
-            ) != f"{self.app.name}-{self.model.name}":
-                logger.error(
-                    f"Cannot add labels: Namespace '{self.model.name}' is already configured with Istio labels managed by another entity."
-                )
-                return
+        labels_to_add = {
+            "istio.io/use-waypoint": f"{self._managed_labels}-waypoint",
+            "istio.io/dataplane-mode": "ambient",
+            "charms.canonical.com/istio.io.waypoint.managed-by": f"{self._managed_labels}",
+        }
 
-            labels_to_add = {
-                "istio.io/use-waypoint": f"{self.app.name}-{self.model.name}-waypoint",
-                "istio.io/dataplane-mode": "ambient",
-                "istio.io.waypoint-managed-by": f"{self.app.name}-{self.model.name}",
-            }
-
-            namespace.metadata.labels.update(labels_to_add)
-            self._patch_namespace(namespace)
+        namespace.metadata.labels.update(labels_to_add)
+        self._patch_namespace(namespace)
 
     def _remove_labels(self):
         """Remove specific labels from the namespace."""
         namespace = self._get_namespace()
         if not namespace:
-            return
+            raise RuntimeError(f"Error fetching namespace: {namespace}")
 
         if namespace.metadata and namespace.metadata.labels:
             if (
-                namespace.metadata.labels.get("istio.io.waypoint-managed-by")
-                != f"{self.app.name}-{self.model.name}"
+                namespace.metadata.labels.get("charms.canonical.com/istio.io.waypoint.managed-by")
+                != f"{self._managed_labels}"
             ):
                 logger.warning(
                     f"Cannot remove labels: Namespace '{self.model.name}' has Istio labels managed by another entity."
@@ -226,7 +233,7 @@ class IstioBeaconCharm(ops.CharmBase):
             labels_to_remove = {
                 "istio.io/use-waypoint": None,
                 "istio.io/dataplane-mode": None,
-                "istio.io.waypoint-managed-by": None,
+                "charms.canonical.com/istio.io.waypoint.managed-by": None,
             }
 
             namespace.metadata.labels.update(labels_to_remove)
