@@ -101,8 +101,9 @@ class IstioBeaconCharm(ops.CharmBase):
                     and deployment.status.readyReplicas == deployment.status.replicas
                 ):
                     return True
-            except ApiError as e:
-                logger.error(f"Error checking waypoint deployment status: {e}")
+                logger.info("Deployment not ready, retrying...")
+            except ApiError:
+                logger.info("Deployment not found, retrying...")
 
             time.sleep(check_interval)
 
