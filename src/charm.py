@@ -121,10 +121,7 @@ class IstioBeaconCharm(ops.CharmBase):
         self.unit.status = MaintenanceStatus("Validating waypoint readiness")
         self._sync_waypoint_resources()
         if not self._is_waypoint_ready():
-            self.unit.status = BlockedStatus(
-                "Waypoint's k8s deployment not ready, is istio properly installed?"
-            )
-            return
+            raise RuntimeError("Waypoint's k8s deployment not ready, is istio properly installed?")
         self.unit.status = ActiveStatus()
 
     def _construct_waypoint(self):

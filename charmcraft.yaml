@@ -55,7 +55,7 @@ config:
         The maximum time (in seconds) to wait for the waypoint deployment to be 
         ready. This applies specifically to the deployment created for the Istio 
         waypoint controller. If the deployment does not become ready within this time, 
-        charm will go into blocked state.
+        charm will go into error state.
     model-on-mesh:
       type: boolean
       default: false
