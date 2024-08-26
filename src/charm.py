@@ -188,10 +188,10 @@ class IstioBeaconCharm(ops.CharmBase):
             namespace.metadata = ObjectMeta()
 
         # Ensure labels are a dictionary even if they are initially None or not set
-        if namespace.metadata.labels is None:
-            namespace.metadata.labels = {}
+        if namespace.metadata.labels is None: # pyright: ignore
+            namespace.metadata.labels = {} # pyright: ignore
 
-        existing_labels = namespace.metadata.labels
+        existing_labels = namespace.metadata.labels # pyright: ignore
         if (
             existing_labels.get("istio.io/use-waypoint")
             or existing_labels.get("istio.io/dataplane-mode")
@@ -209,7 +209,7 @@ class IstioBeaconCharm(ops.CharmBase):
             "charms.canonical.com/istio.io.waypoint.managed-by": f"{self._managed_labels}",
         }
 
-        namespace.metadata.labels.update(labels_to_add)
+        namespace.metadata.labels.update(labels_to_add) # pyright: ignore
         self._patch_namespace(namespace)
 
     def _remove_labels(self):

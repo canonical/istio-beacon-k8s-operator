@@ -21,7 +21,59 @@ def harness():
     harness.cleanup()
 
 
-def test_add_labels(harness: Harness[IstioBeaconCharm]):
+@pytest.mark.parametrize(
+    "labels_before, patched, labels_after",
+    [
+        (
+            # Assert that, when there are no waypoint labels, the expected labels are added
+            {},
+            True,
+            {
+                "istio.io/use-waypoint": "istio-beacon-k8s-istio-system-waypoint",
+                "istio.io/dataplane-mode": "ambient",
+                "charms.canonical.com/istio.io.waypoint.managed-by": "istio-beacon-k8s-istio-system",
+            },
+        ),
+        (
+            # Assert that existing labels get preserved on positive cases
+            {"foo": "bar"},
+            True,
+            {
+                "istio.io/use-waypoint": "istio-beacon-k8s-istio-system-waypoint",
+                "istio.io/dataplane-mode": "ambient",
+                "charms.canonical.com/istio.io.waypoint.managed-by": "istio-beacon-k8s-istio-system",
+                "foo": "bar",
+            },
+        ),
+        (
+            # Assert that, when we already manage the labels, they get updated
+            {
+                "istio.io/use-waypoint": "istio-beacon-k8s-istio-system-waypoint",
+                # "istio.io/dataplane-mode": "ambient",  # omitted for this case on purpose
+                "charms.canonical.com/istio.io.waypoint.managed-by": "istio-beacon-k8s-istio-system",
+                "foo": "bar",
+            },
+            True,
+            {
+                "istio.io/use-waypoint": "istio-beacon-k8s-istio-system-waypoint",
+                "istio.io/dataplane-mode": "ambient",
+                "charms.canonical.com/istio.io.waypoint.managed-by": "istio-beacon-k8s-istio-system",
+                "foo": "bar",
+            },
+        ),
+        # Assert that, when we we do not manage the labels, they do not get updated
+        (
+            {
+                "istio.io/use-waypoint": "istio-beacon-k8s-istio-system-waypoint",
+                "istio.io/dataplane-mode": "ambient",  # omitted for this case on purpose
+                "foo": "bar",
+            },
+            False,
+            "unused arg",
+        ),
+    ],
+)
+def test_add_labels(harness: Harness[IstioBeaconCharm], labels_before, patched, labels_after):
     """Test the _add_labels method with namespace labeling logic."""
     harness.begin()
     charm = harness.charm
@@ -29,79 +81,80 @@ def test_add_labels(harness: Harness[IstioBeaconCharm]):
     mock_namespace = Namespace(
         metadata=ObjectMeta(
             name="istio-system",
-            labels={
-                "foo": "bar",
-            },
+            labels=labels_before,
         )
     )
 
-    # Scenario #1: Namespace has other k8s labels with no istio labels
-    # Expected: Positive Scenario, istio labels to be updated normally
     with patch.object(
         charm.lightkube_client, "get", return_value=mock_namespace
     ) as mock_get, patch.object(charm.lightkube_client, "patch") as mock_patch:
 
         charm._add_labels()
         mock_get.assert_called_once_with(Namespace, "istio-system")
-        mock_patch.assert_called_once_with(Namespace, "istio-system", mock_namespace)
-        assert mock_namespace.metadata.labels == {
-            "istio.io/use-waypoint": "istio-beacon-k8s-istio-system-waypoint",
-            "istio.io/dataplane-mode": "ambient",
-            "charms.canonical.com/istio.io.waypoint.managed-by": "istio-beacon-k8s-istio-system",
-            "foo": "bar",
-        }
-
-    # Scenario #2: Namespace labels are managed by another entity
-    # Expected: Negative Scenario, labels shouldn't be added
-    with patch.object(
-        charm.lightkube_client, "get", return_value=mock_namespace
-    ) as mock_get, patch.object(charm.lightkube_client, "patch") as mock_patch:
-        mock_namespace.metadata.labels.clear()
-        entity_managed_labels = {
-            "istio.io/use-waypoint": "another-entity",
-            "istio.io/dataplane-mode": "ambient",
-        }
-        mock_namespace.metadata.labels.update(entity_managed_labels)
-        charm._add_labels()
-        mock_get.assert_called_once_with(Namespace, "istio-system")
-        mock_patch.assert_not_called()
-        assert mock_namespace.metadata.labels == entity_managed_labels
-
-    # Scenario #3: Namespace labels are managed by this charm
-    # Expected: Positive Scenario, istio labels to be updated normally
-    with patch.object(
-        charm.lightkube_client, "get", return_value=mock_namespace
-    ) as mock_get, patch.object(charm.lightkube_client, "patch") as mock_patch:
-        mock_namespace.metadata.labels.clear()
-        istio_managed_labels = {
-            "istio.io/use-waypoint": "istio-beacon-k8s-istio-system-waypoint",
-            "istio.io/dataplane-mode": "ambient",
-            "charms.canonical.com/istio.io.waypoint.managed-by": "istio-beacon-k8s-istio-system",
-        }
-        mock_namespace.metadata.labels.update(istio_managed_labels)
-        charm._add_labels()
-        mock_get.assert_called_once_with(Namespace, "istio-system")
-        mock_patch.assert_called_once_with(Namespace, "istio-system", mock_namespace)
-        assert mock_namespace.metadata.labels == istio_managed_labels
-
-    # Scenario #4: Namespace has no labels configured, not even external k8s ones
-    # Expected: Positive Scenario, istio labels to be updated normally
-    with patch.object(
-        charm.lightkube_client, "get", return_value=mock_namespace
-    ) as mock_get, patch.object(charm.lightkube_client, "patch") as mock_patch:
-        mock_namespace.metadata.labels.clear()
-        istio_managed_labels = {
-            "istio.io/use-waypoint": "istio-beacon-k8s-istio-system-waypoint",
-            "istio.io/dataplane-mode": "ambient",
-            "charms.canonical.com/istio.io.waypoint.managed-by": "istio-beacon-k8s-istio-system",
-        }
-        charm._add_labels()
-        mock_get.assert_called_once_with(Namespace, "istio-system")
-        mock_patch.assert_called_once_with(Namespace, "istio-system", mock_namespace)
-        assert mock_namespace.metadata.labels == istio_managed_labels
+        if patched:
+            mock_patch.assert_called_once_with(Namespace, "istio-system", mock_namespace)
+            assert mock_namespace.metadata.labels == labels_after
+        else:
+            mock_patch.assert_not_called()
+            assert mock_namespace.metadata.labels == labels_before
 
 
-def test_remove_labels(harness: Harness[IstioBeaconCharm]):
+@pytest.mark.parametrize(
+    "labels_before, patched, labels_after",
+    [
+        (
+            # Scenario 1: Namespace labels are managed by this charm
+            {
+                "istio.io/use-waypoint": "istio-beacon-k8s-istio-system-waypoint",
+                "istio.io/dataplane-mode": "ambient",
+                "charms.canonical.com/istio.io.waypoint.managed-by": "istio-beacon-k8s-istio-system",
+                "foo": "bar",
+            },
+            True,
+            {
+                "foo": "bar",
+                "istio.io/use-waypoint": None,
+                "istio.io/dataplane-mode": None,
+                "charms.canonical.com/istio.io.waypoint.managed-by": None,
+            },
+        ),
+        (
+            # Scenario 2: Namespace labels are managed by another entity
+            {
+                "istio.io/use-waypoint": "another-entity",
+                "istio.io/dataplane-mode": "ambient",
+                "foo": "bar",
+            },
+            False,
+            {
+                "istio.io/use-waypoint": "another-entity",
+                "istio.io.dataplane-mode": "ambient",
+                "foo": "bar",
+            },
+        ),
+        (
+            # Scenario 3: Namespace labels are partially managed by this charm
+            {
+                "charms.canonical.com/istio.io.waypoint.managed-by": "istio-beacon-k8s-istio-system",
+                "foo": "bar",
+            },
+            True,
+            {
+                "foo": "bar",
+                "istio.io/use-waypoint": None,
+                "istio.io/dataplane-mode": None,
+                "charms.canonical.com/istio.io.waypoint.managed-by": None,
+            },
+        ),
+        (
+            # Scenario 4: Namespace has no labels configured at all
+            {},
+            False,
+            {},
+        ),
+    ],
+)
+def test_remove_labels(harness: Harness[IstioBeaconCharm], labels_before, patched, labels_after):
     """Test the _remove_labels method with namespace labeling logic."""
     harness.begin()
     charm = harness.charm
@@ -109,78 +162,22 @@ def test_remove_labels(harness: Harness[IstioBeaconCharm]):
     mock_namespace = Namespace(
         metadata=ObjectMeta(
             name="istio-system",
-            labels={
-                "istio.io/use-waypoint": "istio-beacon-k8s-istio-system-waypoint",
-                "istio.io/dataplane-mode": "ambient",
-                "charms.canonical.com/istio.io.waypoint.managed-by": "istio-beacon-k8s-istio-system",
-                "foo": "bar",
-            },
+            labels=labels_before,
         )
     )
 
-    # Scenario #1: Namespace labels are managed by this charm
-    # Expected: Positive Scenario, istio labels to be removed
     with patch.object(
         charm.lightkube_client, "get", return_value=mock_namespace
     ) as mock_get, patch.object(charm.lightkube_client, "patch") as mock_patch:
 
         charm._remove_labels()
         mock_get.assert_called_once_with(Namespace, "istio-system")
-        mock_patch.assert_called_once_with(Namespace, "istio-system", mock_namespace)
-        assert mock_namespace.metadata.labels == {
-            "foo": "bar",
-            "charms.canonical.com/istio.io.waypoint.managed-by": None,
-            "istio.io/dataplane-mode": None,
-            "istio.io/use-waypoint": None,
-        }
-
-    # Scenario #2: Namespace labels are managed by another entity
-    # Expected: Negative Scenario, labels shouldn't be removed
-    with patch.object(
-        charm.lightkube_client, "get", return_value=mock_namespace
-    ) as mock_get, patch.object(charm.lightkube_client, "patch") as mock_patch:
-        mock_namespace.metadata.labels.clear()
-        entity_managed_labels = {
-            "istio.io/use-waypoint": "another-entity",
-            "istio.io/dataplane-mode": "ambient",
-        }
-        mock_namespace.metadata.labels.update(entity_managed_labels)
-        charm._remove_labels()
-        mock_get.assert_called_once_with(Namespace, "istio-system")
-        mock_patch.assert_not_called()
-        assert mock_namespace.metadata.labels == entity_managed_labels
-
-    # Scenario #3: Namespace has some labels missing, but managed by this charm
-    # Expected: Positive Scenario, existing istio labels to be removed
-    with patch.object(
-        charm.lightkube_client, "get", return_value=mock_namespace
-    ) as mock_get, patch.object(charm.lightkube_client, "patch") as mock_patch:
-        mock_namespace.metadata.labels.clear()
-        partial_labels = {
-            "charms.canonical.com/istio.io.waypoint.managed-by": "istio-beacon-k8s-istio-system",
-            "foo": "bar",
-        }
-        mock_namespace.metadata.labels.update(partial_labels)
-        charm._remove_labels()
-        mock_get.assert_called_once_with(Namespace, "istio-system")
-        mock_patch.assert_called_once_with(Namespace, "istio-system", mock_namespace)
-        assert mock_namespace.metadata.labels == {
-            "foo": "bar",
-            "charms.canonical.com/istio.io.waypoint.managed-by": None,
-            "istio.io/dataplane-mode": None,
-            "istio.io/use-waypoint": None,
-        }
-
-    # Scenario #4: Namespace has no labels configured at all
-    # Expected: No operation is performed, as there are no labels to remove
-    with patch.object(
-        charm.lightkube_client, "get", return_value=mock_namespace
-    ) as mock_get, patch.object(charm.lightkube_client, "patch") as mock_patch:
-        mock_namespace.metadata.labels.clear()
-        charm._remove_labels()
-        mock_get.assert_called_once_with(Namespace, "istio-system")
-        mock_patch.assert_not_called()
-        assert mock_namespace.metadata.labels == {}
+        if patched:
+            mock_patch.assert_called_once_with(Namespace, "istio-system", mock_namespace)
+            assert mock_namespace.metadata.labels == labels_after
+        else:
+            mock_patch.assert_not_called()
+            assert mock_namespace.metadata.labels == labels_before
 
 
 def test_sync_waypoint_resources_add_labels(harness: Harness[IstioBeaconCharm]):
