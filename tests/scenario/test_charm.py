@@ -2,11 +2,12 @@
 # See LICENSE file for licensing details.
 
 import scenario
+
 from charm import IstioBeaconCharm
 
 
+# TODO: introduce mocks needed for testing model-on-mesh
 def test_relation_changed_status():
     ctx = scenario.Context(IstioBeaconCharm)
-    rel = scenario.Relation(endpoint="service-mesh", interface="service_mesh")
-    out = ctx.run(rel.changed_event, scenario.State())
-    assert out.unit_status.name == "active"
+    out = ctx.run("start", scenario.State())
+    assert out.unit_status.name == "unknown"

@@ -43,3 +43,22 @@ parts:
       # Pydantic is not actually used by the lib but charmcraft install pydeps from libs even if
       # they are not used.
       - pydantic>2.0
+    plugin: charm
+    build-packages: [git]
+
+config:
+  options:
+    ready-timeout:
+      type: int
+      default: 100
+      description: >
+        The maximum time (in seconds) to wait for the waypoint deployment to be 
+        ready. This applies specifically to the deployment created for the Istio 
+        waypoint controller. If the deployment does not become ready within this time, 
+        charm will go into error state.
+    model-on-mesh:
+      type: boolean
+      default: false
+      description: >
+        Add this charm's model to the service mesh. 
+        All charms in this model will automatically be added to the mesh.
