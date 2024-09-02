@@ -108,11 +108,22 @@ class Endpoint(pydantic.BaseModel):
 
 
 class Policy(pydantic.BaseModel):
-    """Data type for holding a service mesh policy."""
+    """Data type for defining a policy for your charm."""
 
     relation: str
     endpoints: List[Endpoint]
     service: Optional[str]
+
+
+class MeshPolicy(pydantic.BaseModel):
+    """Data type for storage service mesh policy information."""
+
+    source_app_name: str
+    source_namespace: str
+    target_app_name: str
+    target_namespace: str
+    target_service: Optional[str]
+    endpoints: List[Endpoint]
 
 
 class ServiceMeshConsumer(Object):
@@ -160,7 +171,7 @@ class ServiceMeshConsumer(Object):
         if self._relation is None:
             return
         logger.debug("Updating service mesh policies.")
-        policies = []
+        mesh_policies = []
         cmr_matcher = re.compile(r"remote\-[a-f0-9]+")
         for policy in self._policies:
             for relation in self._charm.model.relations[policy.relation]:
@@ -170,20 +181,17 @@ class ServiceMeshConsumer(Object):
                     )
                 else:
                     logger.debug(f"Found relation: {relation.name}. Creating policy.")
-                    policies.append(
-                        {
-                            "app_name": relation.app.name,
-                            "namespace": self._my_namespace(),
-                            "endpoints": [endpoint.model_dump() for endpoint in policy.endpoints],
-                            "service": policy.service,
-                        }
+                    mesh_policies.append(
+                        MeshPolicy(
+                            source_app_name=relation.app.name,
+                            source_namespace=self._my_namespace(),
+                            target_app_name=self._charm.app.name,
+                            target_namespace=self._my_namespace(),
+                            service=policy.service,
+                            endpoints=policy.endpoints,
+                        ).model_dump()
                     )
-        mesh_rel_data = {
-            "app_name": self._charm.app.name,
-            "model": self._my_namespace(),
-            "policies": policies,
-        }
-        self._relation.data[self._charm.app]["mesh_data"] = json.dumps(mesh_rel_data)
+        self._relation.data[self._charm.app]["policies"] = json.dumps(mesh_policies)
 
     def _my_namespace(self):
         """Return the namespace of the running charm."""
