@@ -69,11 +69,10 @@ self._build_authorization_policies(self._mesh.mesh_info())
 import enum
 import json
 import logging
-import re
 from typing import Dict, List, Optional
 
 import pydantic
-from ops import CharmBase, Object
+from ops import CharmBase, Object, Relation
 
 LIBID = "3f40cb7e3569454a92ac2541c5ca0a0c"  # Never change this
 LIBAPI = 0
@@ -126,6 +125,13 @@ class MeshPolicy(pydantic.BaseModel):
     endpoints: List[Endpoint]
 
 
+class CMRData(pydantic.BaseModel):
+    """Data type containing the info required for cross-model relations."""
+
+    app_name: str
+    juju_model_name: str
+
+
 class ServiceMeshConsumer(Object):
     """Class used for joining a service mesh."""
 
@@ -133,6 +139,8 @@ class ServiceMeshConsumer(Object):
         self,
         charm: CharmBase,
         mesh_relation_name: str = "service-mesh",
+        cross_model_mesh_requires_name: str = "require_cmr_mesh",
+        cross_model_mesh_provides_name: str = "provide_cmr_mesh",
         policies: Optional[List[Policy]] = None,
     ):
         """Class used for joining a service mesh.
@@ -140,15 +148,23 @@ class ServiceMeshConsumer(Object):
         Args:
             charm: The charm instantiating this object.
             mesh_relation_name: The relation name as defined in metadata.yaml or charmcraft.yaml
-                for the relation which used the service_mesh interface.
+                for the relation which uses the service_mesh interface.
+            cross_model_mesh_requires_name: The relation name as defined in metadata.yaml or
+                charmcraft.yaml for the relation which requires the cross_model_mesh interface.
+            cross_model_mesh_provides_name: The relation name as defined in metadata.yaml or
+                charmcraft.yaml for the relation which provides the cross_model_mesh interface.
             policies: List of access policies this charm supports.
         """
         super().__init__(charm, mesh_relation_name)
         self._charm = charm
         self._relation = self._charm.model.get_relation(mesh_relation_name)
+        self._cmr_relations = self._charm.model.relations[cross_model_mesh_provides_name]
         self._policies = policies or []
         self.framework.observe(
             self._charm.on[mesh_relation_name].relation_created, self._relations_changed
+        )
+        self.framework.observe(
+            self._charm.on[cross_model_mesh_requires_name].relation_created, self._send_cmr_data
         )
         self.framework.observe(self._charm.on.upgrade_charm, self._relations_changed)
         for policy in self._policies:
@@ -158,6 +174,11 @@ class ServiceMeshConsumer(Object):
             self.framework.observe(
                 self._charm.on[policy.relation].relation_broken, self._relations_changed
             )
+
+    def _send_cmr_data(self, event):
+        """Send app and model information for CMR."""
+        data = CMRData(app_name=self._charm.name, juju_model_name=self._charm.model.name).model_dump()
+        event.relation.data[self._charm.app]["cmr_data"] = json.dumps(data)
 
     def _relations_changed(self, _event):
         self.update_service_mesh()
@@ -172,12 +193,22 @@ class ServiceMeshConsumer(Object):
             return
         logger.debug("Updating service mesh policies.")
         mesh_policies = []
-        cmr_matcher = re.compile(r"remote\-[a-f0-9]+")
         for policy in self._policies:
             for relation in self._charm.model.relations[policy.relation]:
-                if cmr_matcher.fullmatch(relation.app.name):
-                    logger.debug(
-                        f"Cross model relation found: {relation.name}. Currently not implemented. Skipping."
+                if cmr_relation := self._check_cmr(relation):
+                    logger.debug(f"Found cross model relation: {relation.name}. Creating policy.")
+                    cmr_data = CMRData.parse_obj(
+                        json.loads(cmr_relation.data[cmr_relation.app]["cmr_data"])
+                    )
+                    mesh_policies.append(
+                        MeshPolicy(
+                            source_app_name=cmr_data.app_name,
+                            source_namespace=cmr_data.juju_model_name,
+                            target_app_name=self._charm_app.name,
+                            target_namespace=self._my_namespace(),
+                            service=policy.service,
+                            endpoints=policy.endpoints,
+                        ).model_dump
                     )
                 else:
                     logger.debug(f"Found relation: {relation.name}. Creating policy.")
@@ -192,6 +223,15 @@ class ServiceMeshConsumer(Object):
                         ).model_dump()
                     )
         self._relation.data[self._charm.app]["policies"] = json.dumps(mesh_policies)
+
+    def _check_cmr(self, mesh_relation: Relation) -> Optional[Relation]:
+        for cmr_rel in self._cmr_relations:
+            if cmr_rel.app.name == mesh_relation.app.name:
+                if "cmr_data" not in cmr_rel.data[cmr_rel.app]:
+                    # Data has not yet been provided
+                    continue
+                return cmr_rel
+        return None
 
     def _my_namespace(self):
         """Return the namespace of the running charm."""
