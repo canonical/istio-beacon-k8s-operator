@@ -113,7 +113,6 @@ class IstioBeaconCharm(ops.CharmBase):
         return False
 
     def _is_waypoint_ready(self) -> bool:
-
         if not self._is_waypoint_deployment_ready():
             return False
         return True
