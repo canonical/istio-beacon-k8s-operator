@@ -139,8 +139,8 @@ class ServiceMeshConsumer(Object):
         self,
         charm: CharmBase,
         mesh_relation_name: str = "service-mesh",
-        cross_model_mesh_requires_name: str = "require_cmr_mesh",
-        cross_model_mesh_provides_name: str = "provide_cmr_mesh",
+        cross_model_mesh_requires_name: str = "require-cmr-mesh",
+        cross_model_mesh_provides_name: str = "provide-cmr-mesh",
         policies: Optional[List[Policy]] = None,
     ):
         """Class used for joining a service mesh.
