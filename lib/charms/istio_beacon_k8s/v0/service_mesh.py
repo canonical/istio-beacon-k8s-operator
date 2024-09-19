@@ -177,7 +177,9 @@ class ServiceMeshConsumer(Object):
 
     def _send_cmr_data(self, event):
         """Send app and model information for CMR."""
-        data = CMRData(app_name=self._charm.name, juju_model_name=self._charm.model.name).model_dump()
+        data = CMRData(
+            app_name=self._charm.app.name, juju_model_name=self._charm.model.name
+        ).model_dump()
         event.relation.data[self._charm.app]["cmr_data"] = json.dumps(data)
 
     def _relations_changed(self, _event):
@@ -204,11 +206,11 @@ class ServiceMeshConsumer(Object):
                         MeshPolicy(
                             source_app_name=cmr_data.app_name,
                             source_namespace=cmr_data.juju_model_name,
-                            target_app_name=self._charm_app.name,
+                            target_app_name=self._charm.app.name,
                             target_namespace=self._my_namespace(),
-                            service=policy.service,
+                            target_service=policy.service,
                             endpoints=policy.endpoints,
-                        ).model_dump
+                        ).model_dump()
                     )
                 else:
                     logger.debug(f"Found relation: {relation.name}. Creating policy.")
@@ -218,7 +220,7 @@ class ServiceMeshConsumer(Object):
                             source_namespace=self._my_namespace(),
                             target_app_name=self._charm.app.name,
                             target_namespace=self._my_namespace(),
-                            service=policy.service,
+                            target_service=policy.service,
                             endpoints=policy.endpoints,
                         ).model_dump()
                     )
