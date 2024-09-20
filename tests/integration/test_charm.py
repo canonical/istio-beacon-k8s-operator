@@ -65,3 +65,27 @@ async def test_mesh_config(ops_test: OpsTest):
         [APP_NAME], status="active", timeout=1000, raise_on_error=False
     )
     await validate_labels(istio_beacon, APP_NAME, should_be_present=False)
+
+
+@pytest.mark.abort_on_fail
+async def test_service_mesh_relation(ops_test: OpsTest, sender_receiver_charm):
+    # Ensure model is on mesh
+    # TODO: DEBUG: REMOVE THIS
+    # await ops_test.track_model("beacon", "test-charm-ehpf")
+    istio_beacon = ops_test.models.get("beacon")
+    await istio_beacon.model.applications[APP_NAME].set_config({"model-on-mesh": "true"})
+
+    # Deploy tester charms
+    await istio_beacon.model.deploy(sender_receiver_charm, application_name="receiver")
+    await istio_beacon.model.deploy(sender_receiver_charm, application_name="sender")
+
+    await istio_beacon.model.add_relation("receiver:service-mesh", APP_NAME)
+    await istio_beacon.model.wait_for_idle([APP_NAME])
+
+    await istio_beacon.model.add_relation("receiver:outbound", "sender:inbound")
+    await istio_beacon.model.wait_for_idle(["receiver", "sender"])
+
+    await istio_beacon.model.wait_for_idle(
+        [APP_NAME], status="active", timeout=1000, raise_on_error=False
+    )
+

@@ -5,8 +5,11 @@
 
 import functools
 import logging
+import os
+import shutil
 from collections import defaultdict
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 from pytest_operator.plugin import OpsTest
@@ -65,3 +68,36 @@ async def istio_beacon_charm(ops_test: OpsTest):
 
             if count == 3:
                 raise
+
+
+@pytest.fixture(scope="module")
+@timed_memoizer
+async def istio_beacon_charm(ops_test: OpsTest):
+    count = 0
+    while True:
+        try:
+            charm = await ops_test.build_charm(".", verbosity="debug")
+            return charm
+        except RuntimeError:
+            logger.warning("Failed to build istio-ingress. Trying again!")
+            count += 1
+
+            if count == 3:
+                raise
+
+
+@pytest.fixture(scope="module")
+@timed_memoizer
+async def sender_receiver_charm(ops_test: OpsTest):
+    charm_path = (Path(__file__).parent / "testers" / "sender-receiver").absolute()
+
+    # Update libraries in the tester charms
+    root_lib_folder = Path(__file__).parent.parent.parent / "lib"
+    tester_lib_folder = charm_path / "lib"
+
+    if os.path.exists(tester_lib_folder):
+        shutil.rmtree(tester_lib_folder)
+    shutil.copytree(root_lib_folder, tester_lib_folder)
+
+    charm = await ops_test.build_charm(charm_path, verbosity="debug")
+    return charm

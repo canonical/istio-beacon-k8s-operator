@@ -1,0 +1,45 @@
+# Copyright 2022 Canonical Ltd.
+# See LICENSE file for licensing details.
+name: sender-receiver
+description: tester charm for sending and replying to communication using a local (sending) or pebble deployed (replying) workload
+summary: tester charm for sending and replying to communication using a local (sending) or pebble deployed (replying) workload
+type: charm
+bases:
+  - build-on:
+      - name: "ubuntu"
+        channel: "20.04"
+    run-on:
+      - name: "ubuntu"
+        channel: "20.04"
+
+config:
+  options:
+    x:
+      type: string
+      default: ""
+      description: An unused option that is an easy way to trigger a config-changed event
+
+provides:
+  inbound:
+    interface: service
+
+requires:
+  outbound:
+    interface: service
+  service-mesh:
+    interface: service_mesh
+
+containers:
+  echo-server:
+    resource: echo-server-image
+
+resources:
+  echo-server-image:
+    type: oci-image
+    description: OCI image for echo server
+    upstream-source: jmalloc/echo-server:v0.3.7
+
+parts:
+  charm:
+    charm-binary-python-packages:
+      - ops
