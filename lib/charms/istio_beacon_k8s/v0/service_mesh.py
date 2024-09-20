@@ -101,10 +101,10 @@ class Method(str, enum.Enum):
 class Endpoint(pydantic.BaseModel):
     """Data type for a policy endpoint."""
 
-    hosts: List[str]
-    ports: List[int]
-    methods: List[Method]
-    paths: List[str]
+    hosts: Optional[List[str]] = None
+    ports: Optional[List[int]] = None
+    methods: Optional[List[Method]] = None
+    paths: Optional[List[str]] = None
 
 
 class Policy(pydantic.BaseModel):
@@ -112,7 +112,7 @@ class Policy(pydantic.BaseModel):
 
     relation: str
     endpoints: List[Endpoint]
-    service: Optional[str]
+    service: Optional[str] = None
 
 
 class MeshPolicy(pydantic.BaseModel):
@@ -126,7 +126,15 @@ class MeshPolicy(pydantic.BaseModel):
     endpoints: List[Endpoint]
 
 
-class ServiceMeshConsumer(Object):
+class ApplicationData(pydantic.BaseModel):
+    """Data type for storage service mesh policies."""
+
+    policies: Optional[List[MeshPolicy]]
+
+
+# TODO: I find "Consumer" easier to understand, but "Requirer" matches juju better.
+#  Changed it here just so we dicuss it, but we can change it back
+class ServiceMeshRequirer(Object):
     """Class used for joining a service mesh."""
 
     def __init__(
@@ -151,6 +159,7 @@ class ServiceMeshConsumer(Object):
             self._charm.on[mesh_relation_name].relation_created, self._relations_changed
         )
         self.framework.observe(self._charm.on.upgrade_charm, self._relations_changed)
+        # TODO: Does this double-subscribe events if there's multiple policies?  Should this deduplicate first?
         for policy in self._policies:
             self.framework.observe(
                 self._charm.on[policy.relation].relation_created, self._relations_changed
@@ -187,9 +196,10 @@ class ServiceMeshConsumer(Object):
                             source_namespace=self._my_namespace(),
                             target_app_name=self._charm.app.name,
                             target_namespace=self._my_namespace(),
-                            service=policy.service,
+                            target_service=policy.service,
                             endpoints=policy.endpoints,
-                        ).model_dump()
+                            # TODO: Should we do any of exclude_unset=True, exlude_none=True, exclude_defaults=True?
+                        ).model_dump(exclude_unset=True)
                     )
         self._relation.data[self._charm.app]["policies"] = json.dumps(mesh_policies)
 
@@ -237,11 +247,21 @@ class ServiceMeshProvider(Object):
         for relation in self._charm.model.relations[self._relation_name]:
             relation.data[self._charm.app]["labels"] = rel_data
 
-    def mesh_info(self):
+    def mesh_info(self) -> List[MeshPolicy]:
         """Return the relation data used to define authorization policies on the mesh."""
         mesh_info = []
         for relation in self._charm.model.relations[self._relation_name]:
-            rel_data = json.loads(relation.data[relation.app]["mesh_data"])
-            rel_data["policies"] = [Policy.parse_obj(p) for p in rel_data["policies"]]
-            mesh_info.append(rel_data)
+            policies_data = json.loads(relation.data[relation.app]["policies"])
+            policies = [MeshPolicy.model_validate(policy) for policy in policies_data]
+            mesh_info.extend(policies)
+
+        # TODO: Where should we put this default resolution?  Could be in Requirer side, here on Provider, or in charm
+        #       that uses provider
+        for policy in mesh_info:
+            if policy.target_service is None:
+                logger.info(
+                    f"Got policy for application '{policy.target_app_name}' that has no target_service. Defaulting to"
+                    f" application name '{policy.target_app_name}'."
+                )
+                policy.target_service = policy.target_app_name
         return mesh_info
