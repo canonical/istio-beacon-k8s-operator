@@ -60,6 +60,7 @@ class Action(str, Enum):
 
 class PolicyTargetReference(BaseModel):
     """PolicyTargetReference defines the target of the policy."""
+
     group: str
     kind: str
     name: str
@@ -68,11 +69,13 @@ class PolicyTargetReference(BaseModel):
 
 class WorkloadSelector(BaseModel):
     """WorkloadSelector defines the selector for the policy."""
+
     matchLabels: Dict[str, str]
 
 
 class Source(BaseModel):
     """Source defines the source of the policy."""
+
     principals: Optional[List[str]] = None
     notPrincipals: Optional[List[str]] = None
     # Did not model everything.
@@ -80,11 +83,13 @@ class Source(BaseModel):
 
 class From(BaseModel):
     """From defines the source of the policy."""
+
     source: Source
 
 
 class Operation(BaseModel):
     """Operation defines the operation of the To model."""
+
     hosts: Optional[List[str]] = None
     notHosts: Optional[List[str]] = None
     ports: Optional[List[str]] = None
@@ -96,11 +101,13 @@ class Operation(BaseModel):
 
 class To(BaseModel):
     """To defines the destination of the policy."""
+
     operation: Optional[Operation] = None
 
 
 class Condition(BaseModel):
     """Condition defines the condition for the rule."""
+
     key: str
     values: Optional[List[str]] = None
     notValues: Optional[List[str]] = None
@@ -108,6 +115,7 @@ class Condition(BaseModel):
 
 class Rule(BaseModel):
     """Rule defines a policy rule."""
+
     from_: Optional[List[From]] = Field(default=None, alias="from")
     to: Optional[List[To]] = None
     when: Optional[List[Condition]] = None
@@ -118,6 +126,7 @@ class Rule(BaseModel):
 
 class AuthorizationPolicySpec(BaseModel):
     """AuthorizationPolicyResource defines the structure of an Istio AuthorizationPolicy Kubernetes resource."""
+
     action: Action = Action.allow
     targetRefs: List[PolicyTargetReference]
     rules: List[Rule]

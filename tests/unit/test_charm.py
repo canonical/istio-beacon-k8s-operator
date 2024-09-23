@@ -6,7 +6,6 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
-import yaml
 from charms.istio_beacon_k8s.v0.service_mesh import Endpoint, MeshPolicy
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Namespace
@@ -247,37 +246,41 @@ def test_get_policies_from_related_apps(harness: Harness[IstioBeaconCharm]):
         "service-mesh",
         "other-app1",
         app_data={
-            "policies": json.dumps([
-                MeshPolicy(
-                    source_app_name="source-app1",
-                    source_namespace="source-namespace1",
-                    target_app_name="target-app1",
-                    target_namespace="target-namespace1",
-                    target_service="my-service1",
-                    endpoints=[
-                        Endpoint(
-                            hosts=["host1"],
-                            ports=[80],
-                            methods=["GET"],
-                            paths=["/path1"],
-                        )],
-                ).model_dump(),
-                MeshPolicy(
-                    source_app_name="source-app2",
-                    source_namespace="source-namespace2",
-                    target_app_name="target-app2",
-                    target_namespace="target-namespace2",
-                    target_service="my-service2",
-                    endpoints=[
-                        Endpoint(
-                            hosts=["host2"],
-                            ports=[80],
-                            methods=["GET"],
-                            paths=["/path2"],
-                        )],
-                ).model_dump(),
-            ])
-        }
+            "policies": json.dumps(
+                [
+                    MeshPolicy(
+                        source_app_name="source-app1",
+                        source_namespace="source-namespace1",
+                        target_app_name="target-app1",
+                        target_namespace="target-namespace1",
+                        target_service="my-service1",
+                        endpoints=[
+                            Endpoint(
+                                hosts=["host1"],
+                                ports=[80],
+                                methods=["GET"],
+                                paths=["/path1"],
+                            )
+                        ],
+                    ).model_dump(),
+                    MeshPolicy(
+                        source_app_name="source-app2",
+                        source_namespace="source-namespace2",
+                        target_app_name="target-app2",
+                        target_namespace="target-namespace2",
+                        target_service="my-service2",
+                        endpoints=[
+                            Endpoint(
+                                hosts=["host2"],
+                                ports=[80],
+                                methods=["GET"],
+                                paths=["/path2"],
+                            )
+                        ],
+                    ).model_dump(),
+                ]
+            )
+        },
     )
     harness.begin()
 
@@ -293,37 +296,41 @@ def test_build_authorization_policies(harness: Harness[IstioBeaconCharm]):
         "service-mesh",
         "other-app1",
         app_data={
-            "policies": json.dumps([
-                MeshPolicy(
-                    source_app_name="source-app1",
-                    source_namespace="source-namespace1",
-                    target_app_name="target-app1",
-                    target_namespace="target-namespace1",
-                    target_service="my-service1",
-                    endpoints=[
-                        Endpoint(
-                            hosts=["host1"],
-                            ports=[80],
-                            methods=["GET"],
-                            paths=["/path1"],
-                        )],
-                ).model_dump(),
-                MeshPolicy(
-                    source_app_name="source-app2",
-                    source_namespace="source-namespace2",
-                    target_app_name="target-app2",
-                    target_namespace="target-namespace2",
-                    # target_service="my-service2",  # omit, which should get the default of target app name
-                    endpoints=[
-                        Endpoint(
-                            hosts=["host2"],
-                            ports=[80],
-                            methods=["GET"],
-                            paths=["/path2"],
-                        )],
-                ).model_dump(),
-            ])
-        }
+            "policies": json.dumps(
+                [
+                    MeshPolicy(
+                        source_app_name="source-app1",
+                        source_namespace="source-namespace1",
+                        target_app_name="target-app1",
+                        target_namespace="target-namespace1",
+                        target_service="my-service1",
+                        endpoints=[
+                            Endpoint(
+                                hosts=["host1"],
+                                ports=[80],
+                                methods=["GET"],
+                                paths=["/path1"],
+                            )
+                        ],
+                    ).model_dump(),
+                    MeshPolicy(
+                        source_app_name="source-app2",
+                        source_namespace="source-namespace2",
+                        target_app_name="target-app2",
+                        target_namespace="target-namespace2",
+                        # target_service="my-service2",  # omit, which should get the default of target app name
+                        endpoints=[
+                            Endpoint(
+                                hosts=["host2"],
+                                ports=[80],
+                                methods=["GET"],
+                                paths=["/path2"],
+                            )
+                        ],
+                    ).model_dump(),
+                ]
+            )
+        },
     )
     harness.begin()
     ap = harness.charm._build_authorization_policies(harness.charm._mesh.mesh_info())

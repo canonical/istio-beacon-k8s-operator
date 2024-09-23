@@ -133,7 +133,7 @@ class ApplicationData(pydantic.BaseModel):
 
 
 # TODO: I find "Consumer" easier to understand, but "Requirer" matches juju better.
-#  Changed it here just so we dicuss it, but we can change it back
+#  Changed it here just so we discuss it, but we can change it back
 class ServiceMeshRequirer(Object):
     """Class used for joining a service mesh."""
 

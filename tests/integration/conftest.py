@@ -63,23 +63,7 @@ async def istio_beacon_charm(ops_test: OpsTest):
             charm = await ops_test.build_charm(".", verbosity="debug")
             return charm
         except RuntimeError:
-            logger.warning("Failed to build istio-ingress. Trying again!")
-            count += 1
-
-            if count == 3:
-                raise
-
-
-@pytest.fixture(scope="module")
-@timed_memoizer
-async def istio_beacon_charm(ops_test: OpsTest):
-    count = 0
-    while True:
-        try:
-            charm = await ops_test.build_charm(".", verbosity="debug")
-            return charm
-        except RuntimeError:
-            logger.warning("Failed to build istio-ingress. Trying again!")
+            logger.warning("Failed to build istio-beacon-k8s. Trying again!")
             count += 1
 
             if count == 3:

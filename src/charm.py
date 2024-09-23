@@ -41,8 +41,11 @@ RESOURCE_TYPES = {
         "gateway.networking.k8s.io", "v1", "Gateway", "gateways"
     ),
     "AuthorizationPolicy": create_namespaced_resource(
-        "security.istio.io", "v1", "AuthorizationPolicy", "authorizationpolicies",
-    )
+        "security.istio.io",
+        "v1",
+        "AuthorizationPolicy",
+        "authorizationpolicies",
+    ),
 }
 
 AUTHORIZATION_POLICY_LABEL = "istio-authorization-policy"
@@ -82,7 +85,10 @@ class IstioBeaconCharm(ops.CharmBase):
     def _on_remove(self, _):
         """Event handler for remove."""
         self._remove_labels()
-        for krm in (self._get_waypoint_resource_manager(), self._get_authorization_policy_resource_manager()):
+        for krm in (
+            self._get_waypoint_resource_manager(),
+            self._get_authorization_policy_resource_manager(),
+        ):
             krm.delete()
 
     @property
@@ -178,11 +184,13 @@ class IstioBeaconCharm(ops.CharmBase):
                     namespace=self.model.name,
                 ),
                 spec=AuthorizationPolicySpec(
-                    targetRefs=[PolicyTargetReference(
-                        kind="Service",
-                        group="",
-                        name=policy.target_service,
-                    )],
+                    targetRefs=[
+                        PolicyTargetReference(
+                            kind="Service",
+                            group="",
+                            name=policy.target_service,
+                        )
+                    ],
                     rules=[
                         Rule(
                             from_=[
@@ -205,13 +213,14 @@ class IstioBeaconCharm(ops.CharmBase):
                                         methods=endpoint.methods,
                                         paths=endpoint.paths,
                                     )
-                                ) for endpoint in policy.endpoints
+                                )
+                                for endpoint in policy.endpoints
                             ],
                         )
                     ],
-                # by_alias=True because the model includes an alias for the `from` field
-                # exclude_unset=True because unset fields will be treated as their default values in Kubernetes
-                # exclude_none=True because null values in this data always mean the Kubernetes default
+                    # by_alias=True because the model includes an alias for the `from` field
+                    # exclude_unset=True because unset fields will be treated as their default values in Kubernetes
+                    # exclude_none=True because null values in this data always mean the Kubernetes default
                 ).model_dump(by_alias=True, exclude_unset=True, exclude_none=True),
             )
         return authorization_policies
@@ -342,7 +351,7 @@ class IstioBeaconCharm(ops.CharmBase):
 
 
 def _get_peer_identity_for_juju_application(app_name, namespace):
-    """Returns a Juju application's peer identity.
+    """Return a Juju application's peer identity.
 
     Format returned is defined by `principals` in
     [this reference](https://istio.io/latest/docs/reference/config/security/authorization-policy/#Source):
@@ -355,7 +364,7 @@ def _get_peer_identity_for_juju_application(app_name, namespace):
 
 
 def _get_peer_identity_for_service_account(service_account, namespace):
-    """Returns a ServiceAccount's peer identity.
+    """Return a ServiceAccount's peer identity.
 
     Format returned is defined by `principals` in
     [this reference](https://istio.io/latest/docs/reference/config/security/authorization-policy/#Source):

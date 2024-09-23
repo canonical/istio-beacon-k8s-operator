@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
-import json
 import logging
 
 import ops
-import requests
 from charms.istio_beacon_k8s.v0.service_mesh import Endpoint, Policy, ServiceMeshRequirer
 from ops import BlockedStatus
 from ops.charm import CharmBase
 from ops.main import main
-from ops.model import ActiveStatus, WaitingStatus
+from ops.model import ActiveStatus
 from ops.pebble import Layer
 
 logger = logging.getLogger(__name__)
@@ -58,10 +56,9 @@ class ServiceMeshTester(CharmBase):
                         "override": "replace",
                         "command": "/bin/echo-server",
                         "startup": "enabled",
-                        "environment": {
-                            "PORT": str(port)
-                        }
-                    } for i, port in enumerate(self._ports)
+                        "environment": {"PORT": str(port)},
+                    }
+                    for i, port in enumerate(self._ports)
                 },
             }
         )

@@ -41,7 +41,7 @@ extend-ignore = [
     "N805",
 ]
 ignore = ["E501", "D107"]
-per-file-ignores = {"tests/*" = ["D100","D101","D102","D103","D104"]}
+per-file-ignores = {"tests/*" = ["D100","D101","D102","D103","D104"], "src/models.py" = ["N815"]}
 
 [tool.codespell]
 skip = "build,lib,venv,icon.svg,.tox,.git,.mypy_cache,.ruff_cache,.coverage"

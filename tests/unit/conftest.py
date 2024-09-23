@@ -14,7 +14,7 @@ def mock_lightkube_client(request):
     """Global mock for the Lightkube Client to avoid loading kubeconfig in CI."""
     # Skip this fixture if the test has explicitly disabled it.
     # To use this feature in a test, mark it with @pytest.mark.disable_lightkube_client_autouse
-    if 'disable_lightkube_client_autouse' in request.keywords:
+    if "disable_lightkube_client_autouse" in request.keywords:
         yield
     else:
         with patch.object(Client, "__init__", lambda self, *args, **kwargs: None):
