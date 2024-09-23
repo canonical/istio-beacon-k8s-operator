@@ -89,7 +89,7 @@ async def istio_beacon_charm(ops_test: OpsTest):
 @pytest.fixture(scope="module")
 @timed_memoizer
 async def sender_receiver_charm(ops_test: OpsTest):
-    charm_path = (Path(__file__).parent / "testers" / "sender-receiver").absolute()
+    charm_path = (Path(__file__).parent / "testers" / "service-mesh-tester").absolute()
 
     # Update libraries in the tester charms
     root_lib_folder = Path(__file__).parent.parent.parent / "lib"

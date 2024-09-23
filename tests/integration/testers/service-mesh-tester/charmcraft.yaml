@@ -1,6 +1,6 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
-name: sender-receiver
+name: service-mesh-tester
 description: tester charm for sending and replying to communication using a local (sending) or pebble deployed (replying) workload
 summary: tester charm for sending and replying to communication using a local (sending) or pebble deployed (replying) workload
 type: charm
@@ -13,11 +13,6 @@ bases:
         channel: "20.04"
 
 config:
-  options:
-    x:
-      type: string
-      default: ""
-      description: An unused option that is an easy way to trigger a config-changed event
 
 provides:
   inbound:
