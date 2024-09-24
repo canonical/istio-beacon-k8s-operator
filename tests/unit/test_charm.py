@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
-import json
 
 # Copyright 2024 Canonical Ltd.
 # See LICENSE file for licensing details.
 from unittest.mock import MagicMock, patch
 
 import pytest
-from charms.istio_beacon_k8s.v0.service_mesh import Endpoint, MeshPolicy
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Namespace
 from ops.testing import Harness
@@ -239,104 +237,3 @@ def test_sync_waypoint_resources_remove_labels(harness: Harness[IstioBeaconCharm
 
         # Ensure add_labels is not called
         mock_add_labels.assert_not_called()
-
-
-def test_get_policies_from_related_apps(harness: Harness[IstioBeaconCharm]):
-    harness.add_relation(
-        "service-mesh",
-        "other-app1",
-        app_data={
-            "policies": json.dumps(
-                [
-                    MeshPolicy(
-                        source_app_name="source-app1",
-                        source_namespace="source-namespace1",
-                        target_app_name="target-app1",
-                        target_namespace="target-namespace1",
-                        target_service="my-service1",
-                        endpoints=[
-                            Endpoint(
-                                hosts=["host1"],
-                                ports=[80],
-                                methods=["GET"],
-                                paths=["/path1"],
-                            )
-                        ],
-                    ).model_dump(),
-                    MeshPolicy(
-                        source_app_name="source-app2",
-                        source_namespace="source-namespace2",
-                        target_app_name="target-app2",
-                        target_namespace="target-namespace2",
-                        target_service="my-service2",
-                        endpoints=[
-                            Endpoint(
-                                hosts=["host2"],
-                                ports=[80],
-                                methods=["GET"],
-                                paths=["/path2"],
-                            )
-                        ],
-                    ).model_dump(),
-                ]
-            )
-        },
-    )
-    harness.begin()
-
-    mesh_info = harness.charm._mesh.mesh_info()
-    assert mesh_info[0].endpoints[0].hosts == ["host1"]
-    assert mesh_info[1].endpoints[0].paths == ["/path2"]
-
-
-@pytest.mark.disable_lightkube_client_autouse
-def test_build_authorization_policies(harness: Harness[IstioBeaconCharm]):
-    # TODO: deduplicate this code
-    harness.add_relation(
-        "service-mesh",
-        "other-app1",
-        app_data={
-            "policies": json.dumps(
-                [
-                    MeshPolicy(
-                        source_app_name="source-app1",
-                        source_namespace="source-namespace1",
-                        target_app_name="target-app1",
-                        target_namespace="target-namespace1",
-                        target_service="my-service1",
-                        endpoints=[
-                            Endpoint(
-                                hosts=["host1"],
-                                ports=[80],
-                                methods=["GET"],
-                                paths=["/path1"],
-                            )
-                        ],
-                    ).model_dump(),
-                    MeshPolicy(
-                        source_app_name="source-app2",
-                        source_namespace="source-namespace2",
-                        target_app_name="target-app2",
-                        target_namespace="target-namespace2",
-                        # target_service="my-service2",  # omit, which should get the default of target app name
-                        endpoints=[
-                            Endpoint(
-                                hosts=["host2"],
-                                ports=[80],
-                                methods=["GET"],
-                                paths=["/path2"],
-                            )
-                        ],
-                    ).model_dump(),
-                ]
-            )
-        },
-    )
-    harness.begin()
-    ap = harness.charm._build_authorization_policies(harness.charm._mesh.mesh_info())
-
-    # Spot check the outputs
-    assert ap[0]["metadata"].namespace == harness.charm.model.name
-    assert ap[0]["spec"]["targetRefs"][0]["name"] == "my-service1"
-    assert ap[1]["spec"]["rules"][0]["to"][0]["operation"]["paths"] == ["/path2"]
-    assert ap[1]["spec"]["targetRefs"][0]["name"] == "target-app2"

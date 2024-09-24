@@ -122,7 +122,7 @@ class MeshPolicy(pydantic.BaseModel):
     source_namespace: str
     target_app_name: str
     target_namespace: str
-    target_service: Optional[str]
+    target_service: Optional[str] = None
     endpoints: List[Endpoint]
 
 
