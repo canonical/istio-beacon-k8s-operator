@@ -1,8 +1,8 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
 name: service-mesh-tester
-description: tester charm for sending and replying to communication using a local (sending) or pebble deployed (replying) workload
-summary: tester charm for sending and replying to communication using a local (sending) or pebble deployed (replying) workload
+description: tester charm that implements the service-mesh relation, some mock relations, and a service that listens/responds to traffic.  Used for testing the istio charms
+summary: tester charm that implements the service-mesh relation, some mock relations, and a service that listens/responds to traffic.  Used for testing the istio charms
 type: charm
 bases:
   - build-on:
@@ -38,3 +38,4 @@ parts:
   charm:
     charm-binary-python-packages:
       - ops
+      - requests
