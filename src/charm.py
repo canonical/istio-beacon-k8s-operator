@@ -171,7 +171,7 @@ class IstioBeaconCharm(ops.CharmBase):
         """Build authorization policies for all related applications."""
         authorization_policies = [None] * len(mesh_info)
         for i, policy in enumerate(mesh_info):
-            authorization_policies[i] = RESOURCE_TYPES["AuthorizationPolicy"](
+            authorization_policies[i] = RESOURCE_TYPES["AuthorizationPolicy"](  # type: ignore
                 metadata=ObjectMeta(
                     # TODO: Each related app can define multiple policies that apply to the same source/target pair -
                     #  how do we name the policies below to account for that?  For now, we suffix the index of the
@@ -193,7 +193,7 @@ class IstioBeaconCharm(ops.CharmBase):
                     ],
                     rules=[
                         Rule(
-                            from_=[
+                            from_=[  # type: ignore # this is accessible via an alias
                                 From(
                                     source=Source(
                                         principals=[
@@ -256,7 +256,7 @@ class IstioBeaconCharm(ops.CharmBase):
         authorization_policies = self._build_authorization_policies(self._mesh.mesh_info())
         logger.debug("Reconciling state of AuthorizationPolicies to:")
         logger.debug(authorization_policies)
-        krm.reconcile(authorization_policies)
+        krm.reconcile(authorization_policies)  # type: ignore
 
     def _sync_waypoint_resources(self):
         resources_list = []
