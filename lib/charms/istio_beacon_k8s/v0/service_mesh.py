@@ -280,11 +280,21 @@ class ServiceMeshProvider(Object):
         for relation in self._charm.model.relations[self._relation_name]:
             relation.data[self._charm.app]["labels"] = rel_data
 
-    def mesh_info(self):
+    def mesh_info(self) -> List[MeshPolicy]:
         """Return the relation data used to define authorization policies on the mesh."""
         mesh_info = []
         for relation in self._charm.model.relations[self._relation_name]:
-            rel_data = json.loads(relation.data[relation.app]["mesh_data"])
-            rel_data["policies"] = [Policy.parse_obj(p) for p in rel_data["policies"]]
-            mesh_info.append(rel_data)
+            policies_data = json.loads(relation.data[relation.app]["policies"])
+            policies = [MeshPolicy.model_validate(policy) for policy in policies_data]
+            mesh_info.extend(policies)
+
+        # TODO: Where should we put this default resolution?  Could be in Requirer side, here on Provider, or in charm
+        #       that uses provider
+        for policy in mesh_info:
+            if policy.target_service is None:
+                logger.info(
+                    f"Got policy for application '{policy.target_app_name}' that has no target_service. Defaulting to"
+                    f" application name '{policy.target_app_name}'."
+                )
+                policy.target_service = policy.target_app_name
         return mesh_info
