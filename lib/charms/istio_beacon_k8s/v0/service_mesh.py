@@ -227,6 +227,7 @@ class ServiceMeshConsumer(Object):
         self._relation.data[self._charm.app]["policies"] = json.dumps(mesh_policies)
 
     def _check_cmr(self, mesh_relation: Relation) -> Optional[Relation]:
+        """Check if the given relation is a cmr. If so return the associated cross_model_mesh relation."""
         for cmr_rel in self._cmr_relations:
             if cmr_rel.app.name == mesh_relation.app.name:
                 if "cmr_data" not in cmr_rel.data[cmr_rel.app]:
