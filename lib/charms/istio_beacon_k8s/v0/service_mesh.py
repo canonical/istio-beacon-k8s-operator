@@ -287,14 +287,4 @@ class ServiceMeshProvider(Object):
             policies_data = json.loads(relation.data[relation.app]["policies"])
             policies = [MeshPolicy.model_validate(policy) for policy in policies_data]
             mesh_info.extend(policies)
-
-        # TODO: Where should we put this default resolution?  Could be in Requirer side, here on Provider, or in charm
-        #       that uses provider
-        for policy in mesh_info:
-            if policy.target_service is None:
-                logger.info(
-                    f"Got policy for application '{policy.target_app_name}' that has no target_service. Defaulting to"
-                    f" application name '{policy.target_app_name}'."
-                )
-                policy.target_service = policy.target_app_name
         return mesh_info
