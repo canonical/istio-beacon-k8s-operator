@@ -40,7 +40,7 @@ except ops.TooManyRelatedAppsError as e:
 You will then receive the labels which you need to add your product to the mesh:
 ```
 def _on_mesh_relation_changed(self, event):
-    self._apply_labels to pods(self._mesh.labels())
+    self._apply_labels_to_pods(self._mesh.labels())
 
 ##Provider
 
