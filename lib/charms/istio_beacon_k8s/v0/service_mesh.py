@@ -244,7 +244,7 @@ class ServiceMeshConsumer(Object):
 
     def labels(self):
         """Labels required for a pod to join the mesh."""
-        if self._relation is None:
+        if self._relation is None or "labels" not in self._relation.data[self._relation.app]:
             return {}
         return json.loads(self._relation.data[self._relation.app]["labels"])
 
