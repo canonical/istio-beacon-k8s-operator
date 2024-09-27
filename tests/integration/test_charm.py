@@ -44,7 +44,7 @@ async def test_deployment(ops_test: OpsTest, istio_beacon_charm):
     # Not the model name just an alias
     await ops_test.track_model("beacon")
     istio_beacon = ops_test.models.get("beacon")
-    (await istio_beacon.model.deploy(istio_beacon_charm, application_name=APP_NAME, trust=True),)
+    await istio_beacon.model.deploy(istio_beacon_charm, application_name=APP_NAME, trust=True)
     await istio_beacon.model.wait_for_idle([APP_NAME], status="active", timeout=1000)
 
 
