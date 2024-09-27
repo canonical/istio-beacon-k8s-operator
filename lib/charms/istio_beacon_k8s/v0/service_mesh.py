@@ -71,7 +71,7 @@ If a relation is cross model, and addition step is required to make the authoriz
 To provide a service mesh, instantiate the ServiceMeshProvider object in the __init__ method
 of your charm:
 ```
-from charms.istio_beacon_k8s.v0.service_mesh import Policy, ServiceMeshProvider
+from charms.istio_beacon_k8s.v0.service_mesh import ServiceMeshProvider
 
 ...
 self._mesh = ServiceMeshProvider(
