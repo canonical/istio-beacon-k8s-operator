@@ -8,39 +8,63 @@ The library leverages the `service_mesh` and `cross_model_mesh` interfaces.
 
 ##Consumer
 
-To add service mesh support to your charm, instantiate a ServiceMeshConsumer object in the
+To add service mesh support to your charm, you must add 3 relations in your charmcraft.yaml.
+
+```
+requires:
+  service-mesh:
+    limit: 1
+    interface: service_mesh
+  require-cmr-mesh:
+    interface: cross_model_mesh
+provides:
+  provide-cmr-mesh:
+    interface: cross_model_mesh
+```
+
+Then instantiate a ServiceMeshConsumer object in the
 `__init__` method of your charm:
 
 ```
 from charms.istio_beacon_k8s.v0.service_mesh import Policy, ServiceMeshConsumer
 
 ...
-try:
-    self._mesh = ServiceMeshConsumer(
-        self,
-        policies=[
-            Policy(
-                relation="logging",
-                endpoints=[
-                    Endpoint(
-                        hosts=[self._my_host_name],
-                        ports=[HTTP_LISTEN_PORT],
-                        methods=["GET"],
-                        paths=["/foo"],
-                    ),
-                ],
-                service=self._my_k8s_service(),
-            ),
-        ],
-    )
-except ops.TooManyRelatedAppsError as e:
-    self.unit.status = BlockedStatus(e)
+self._mesh = ServiceMeshConsumer(
+    self,
+    policies=[
+        Policy(
+            relation="metrics",
+            endpoints=[
+                Endpoint(
+                    hosts=[self._my_host_name],
+                    ports=[HTTP_LISTEN_PORT],
+                    methods=["GET"],
+                    paths=["/metrics"],
+                ),
+            ],
+        ),
+        Policy(
+            relation="data",
+            endpoint=[
+                Endpoint(
+                    hosts=[self._my_host_name],
+                    ports[HTTP_LISTEN_PORT],
+                    methods=["GET"]
+                    paths=["/data"],
+                ),
+            ],
+        ),
+    ],
+)
 ```
 
-You will then receive the labels which you need to add your product to the mesh:
-```
-def _on_mesh_relation_changed(self, event):
-    self._apply_labels_to_pods(self._mesh.labels())
+The example above specifies two policies. The resulting behaviour would be that when related over the `metrics` relation, the service mesh will allow traffic to the `/metrics` endpoint for the remote application and when related over the `data` endpoint, the service mesh will allow traffic to the `/data` endpoint.
+
+By using the above method, you can specify exactly which endpoints can be reached over which relations.
+
+###Cross Model relations
+
+If a relation is cross model, and addition step is required to make the authorization policies work. You must also relate the two applications over the cross_model_mesh interface. When that relation is established, traffic will be allowed from the requirer to the provider.
 
 ##Provider
 
