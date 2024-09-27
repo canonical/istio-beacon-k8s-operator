@@ -76,7 +76,7 @@ from charms.istio_beacon_k8s.v0.service_mesh import ServiceMeshProvider
 ...
 self._mesh = ServiceMeshProvider(
     charm = self,
-    labels = self._get_mesh_labels(),
+    labels = {"my_service_mesh": "enable"},
     mesh_relation_name = "service-mesh",
 )
 ```
