@@ -86,9 +86,11 @@ These will be sent to each related ServiceMeshConsumer to be used by the charm f
 are service-mesh dependent - for example, for an Istio ambient mesh this should be
 {"istio.io/dataplane-mode": "ambient"}.
 
-You can then use the relation data to build your authorization policies:
+The provider also exposes the method `mesh_info` that returns a list of MeshPolicy objects. These MeshPolicy objects can be used to configure the service mesh.
+
 ```
-self._build_authorization_policies(self._mesh.mesh_info())
+for policy in self._mesh.mesh_info():
+    set_up_my_mesh(policy)
 ```
 """
 
