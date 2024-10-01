@@ -83,8 +83,8 @@ self._mesh = ServiceMeshProvider(
 
 The labels argument is the dict of labels that indicate to the service mesh that a Pod should be subscribed to the mesh.
 These will be sent to each related ServiceMeshConsumer to be used by the charm for per-Pod subscription.  These labels
-are service-mesh dependent - for example, for an Istio ambient mesh this should be 
-{"istio.io/dataplane-mode": "ambient"}.  
+are service-mesh dependent - for example, for an Istio ambient mesh this should be
+{"istio.io/dataplane-mode": "ambient"}.
 
 You can then use the relation data to build your authorization policies:
 ```
