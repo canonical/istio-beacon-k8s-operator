@@ -36,7 +36,7 @@ def consumer_context(policies: typing.List[Policy]):
 
 ENDPOINT_A = Endpoint(hosts=[], ports=[80], methods=[], paths=[])
 
-SIMPLE = (
+REQUIRER = (
     [Policy(relation="rela", endpoints=[ENDPOINT_A], service=None)],
     [
         {
@@ -50,7 +50,7 @@ SIMPLE = (
     ],
 )
 
-CMR = (
+REQUIRER_CMR = (
     [Policy(relation="relb", endpoints=[ENDPOINT_A], service=None)],
     [
         {
@@ -64,7 +64,7 @@ CMR = (
     ],
 )
 
-REVERSE = (
+PROVIDER = (
     [Policy(relation="relc", endpoints=[ENDPOINT_A], service=None)],
     [
         {
@@ -78,7 +78,7 @@ REVERSE = (
     ],
 )
 
-REVERSE_CMR = (
+PROVIDER_CMR = (
     [Policy(relation="reld", endpoints=[ENDPOINT_A], service=None)],
     [
         {
@@ -92,11 +92,17 @@ REVERSE_CMR = (
     ],
 )
 
-POLICY_DATA_PARAMS = [SIMPLE, CMR, REVERSE, REVERSE_CMR]
+POLICY_DATA_PARAMS = [REQUIRER, REQUIRER_CMR, PROVIDER, PROVIDER_CMR]
 
 
 @pytest.mark.parametrize("policies,expected_data", POLICY_DATA_PARAMS)
 def test_relation_data_policies(policies, expected_data):
+    """Test that a given list of policies produces the expected output.
+
+    This test sets up 4 relations; requirer, requirer_cmr, provider, and provider_cmr. The
+    policies can be on any combination of these relations and should produce proper
+    objects.
+    """
     ctx = consumer_context(policies)
     mesh_relation = scenario.Relation(endpoint="service-mesh", interface="service_mesh")
     rela = scenario.Relation("rela", "foo", remote_app_name="remote_a")
