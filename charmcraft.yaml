@@ -36,6 +36,8 @@ bases:
 provides:
   service-mesh:
     interface: service_mesh
+  metrics-endpoint:
+    interface: prometheus_scrape
 
 parts:
   charm:

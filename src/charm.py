@@ -9,6 +9,7 @@ import logging
 import time
 
 import ops
+from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from lightkube.core.client import Client
 from lightkube.core.exceptions import ApiError
 from lightkube.generic_resource import create_namespaced_resource
@@ -41,6 +42,25 @@ class IstioBeaconCharm(ops.CharmBase):
         self._lightkube_field_manager: str = self.app.name
         self._lightkube_client = None
         self._managed_labels = f"{self.app.name}-{self.model.name}"
+
+        # Configure Observability
+        self._scraping = MetricsEndpointProvider(
+            self,
+            relation_name="metrics-endpoint",
+            jobs=[
+                {
+                    "metrics_path": "/stats/prometheus",
+                    "static_configs": [
+                        {
+                            "targets": [
+                                f"{self._managed_labels}-waypoint.{self.model.name}.svc:15020"
+                            ]
+                        }
+                    ],
+                }
+            ],
+        )
+
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.remove, self._on_remove)
         self.framework.observe(self.on["service-mesh"].relation_changed, self.on_mesh_changed)
