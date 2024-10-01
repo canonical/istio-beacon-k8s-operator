@@ -228,7 +228,7 @@ class ServiceMeshConsumer(Object):
             for relation in self._charm.model.relations[policy.relation]:
                 if cmr_relation := self._check_cmr(relation):
                     logger.debug(f"Found cross model relation: {relation.name}. Creating policy.")
-                    cmr_data = CMRData.parse_obj(
+                    cmr_data = CMRData.model_validate(
                         json.loads(cmr_relation.data[cmr_relation.app]["cmr_data"])
                     )
                     mesh_policies.append(
