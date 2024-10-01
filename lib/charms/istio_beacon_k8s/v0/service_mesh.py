@@ -195,12 +195,13 @@ class ServiceMeshConsumer(Object):
             self._charm.on[cross_model_mesh_requires_name].relation_created, self._send_cmr_data
         )
         self.framework.observe(self._charm.on.upgrade_charm, self._relations_changed)
-        for policy in self._policies:
+        relations = {policy.relation for policy in self._policies}
+        for relation in relations:
             self.framework.observe(
-                self._charm.on[policy.relation].relation_created, self._relations_changed
+                self._charm.on[relation].relation_created, self._relations_changed
             )
             self.framework.observe(
-                self._charm.on[policy.relation].relation_broken, self._relations_changed
+                self._charm.on[relation].relation_broken, self._relations_changed
             )
 
     def _send_cmr_data(self, event):
