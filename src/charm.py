@@ -241,6 +241,7 @@ class IstioBeaconCharm(ops.CharmBase):
 
     def mesh_labels(self):
         """Labels required for a workload to join the mesh."""
+        # TODO: write this.
         return {"foo": "bar"}
 
 
