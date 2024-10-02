@@ -8,9 +8,9 @@ The library leverages the `service_mesh` and `cross_model_mesh` interfaces.
 
 ##Consumer
 
-Service meshes provide a range of capabilities for routing, controlling, and monitoring traffic.  A key feature of many service meshes is the ability to restrict traffic between Pods based on L4 and L7 criteria.  For example, defining that a Pod MetricsScraper can `GET` from Pod MetricsProducer at `/metrics` on port `9090`, but SomeOtherPod cannot.  
+Service meshes provide a range of capabilities for routing, controlling, and monitoring traffic.  A key feature of many service meshes is the ability to restrict traffic between Pods based on L4 and L7 criteria.  For example, defining that a Pod MetricsScraper can `GET` from Pod MetricsProducer at `/metrics` on port `9090`, but SomeOtherPod cannot.
 
-The ServiceMeshConsumer object is used to subscribe a charm and its workloads to a related service mesh.  Since it is common for a relation between applications to indicate traffic flow (ex: if DbConsumer Requires a DbProducer), the ServiceMeshConsumer provides an optional way to automate creation of traffic rules based on app relations. 
+The ServiceMeshConsumer object is used to subscribe a charm and its workloads to a related service mesh.  Since it is common for a relation between applications to indicate traffic flow (ex: if DbConsumer Requires a DbProducer), the ServiceMeshConsumer provides an optional way to automate creation of traffic rules based on app relations.
 
 To add service mesh support to your charm, you must add 3 relations in your charmcraft.yaml.
 
@@ -198,6 +198,10 @@ class ServiceMeshConsumer(Object):
         self.framework.observe(
             self._charm.on[cross_model_mesh_requires_name].relation_created, self._send_cmr_data
         )
+        self.framework.observe(
+            self._charm.on[cross_model_mesh_provides_name].relation_changed,
+            self._relations_changed,
+        )
         self.framework.observe(self._charm.on.upgrade_charm, self._relations_changed)
         relations = {policy.relation for policy in self._policies}
         for relation in relations:
@@ -260,7 +264,12 @@ class ServiceMeshConsumer(Object):
         self._relation.data[self._charm.app]["policies"] = json.dumps(mesh_policies)
 
     def _check_cmr(self, mesh_relation: Relation) -> Optional[Relation]:
-        """Check if the given relation is a cmr. If so return the associated cross_model_mesh relation."""
+        """Check if the given relation is a cmr. If so return the associated cross_model_mesh relation.
+
+        Returns:
+            Return an instance of the cmr relation if it is found and has data. If there is no
+            data or the relation does not exist, return None.
+        """
         for cmr_rel in self._cmr_relations:
             # These are the app names as seen by the consumer and are local to the model. When
             # establishing cross-model relations, it is not possible to represent the app with an
@@ -268,7 +277,7 @@ class ServiceMeshConsumer(Object):
             if cmr_rel.app.name == mesh_relation.app.name:
                 if "cmr_data" not in cmr_rel.data[cmr_rel.app]:
                     # Data has not yet been provided
-                    continue
+                    return None
                 return cmr_rel
         return None
 
