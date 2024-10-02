@@ -68,7 +68,7 @@ By using the above method, you can specify exactly which endpoints can be reache
 
 ###Cross Model relations
 
-If a relation is cross model, and addition step is required to make the authorization policies work. You must also relate the two applications over the cross_model_mesh interface. When that relation is established, traffic will be allowed from the requirer to the provider.
+If a ServiceMeshConsumer is creating a Policy for a relation that is cross model, additional information is required to construct the policy. To facilitate this, the charms can also be related over the cross_model_mesh interface. When that relation is established, traffic will be allowed from the requirer to the provider.
 
 ##Provider
 
