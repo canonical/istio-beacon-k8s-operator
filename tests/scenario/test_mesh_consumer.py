@@ -82,6 +82,31 @@ WITH_COMPLEX_ENDPOINTS = (
     ],
 )
 
+MULTIPLE_POLICIES = (
+    [
+        Policy(relation="rela", endpoints=[ENDPOINT_A], service=None),
+        Policy(relation="relc", endpoints=[ENDPOINT_A], service=None),
+    ],
+    [
+        {
+            "source_app_name": "remote_a",
+            "source_namespace": "my_model",
+            "target_app_name": "consumer-charm",
+            "target_namespace": "my_model",
+            "target_service": None,
+            "endpoints": [{"hosts": [], "ports": [80], "methods": [], "paths": []}],
+        },
+        {
+            "source_app_name": "remote_c",
+            "source_namespace": "my_model",
+            "target_app_name": "consumer-charm",
+            "target_namespace": "my_model",
+            "target_service": None,
+            "endpoints": [{"hosts": [], "ports": [80], "methods": [], "paths": []}],
+        },
+    ],
+)
+
 REQUIRER = (
     [Policy(relation="rela", endpoints=[ENDPOINT_A], service=None)],
     [
@@ -138,7 +163,7 @@ PROVIDER_CMR = (
     ],
 )
 
-POLICY_DATA_PARAMS = [WITH_COMPLEX_ENDPOINTS, REQUIRER, REQUIRER_CMR, PROVIDER, PROVIDER_CMR]
+POLICY_DATA_PARAMS = [WITH_COMPLEX_ENDPOINTS, MULTIPLE_POLICIES, REQUIRER, REQUIRER_CMR, PROVIDER, PROVIDER_CMR]
 
 
 @pytest.mark.parametrize("policies,expected_data", POLICY_DATA_PARAMS)
