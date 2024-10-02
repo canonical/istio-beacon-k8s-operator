@@ -8,6 +8,10 @@ The library leverages the `service_mesh` and `cross_model_mesh` interfaces.
 
 ##Consumer
 
+Service meshes provide a range of capabilities for routing, controlling, and monitoring traffic.  A key feature of many service meshes is the ability to restrict traffic between Pods based on L4 and L7 criteria.  For example, defining that a Pod MetricsScraper can `GET` from Pod MetricsProducer at `/metrics` on port `9090`, but SomeOtherPod cannot.  
+
+The ServiceMeshConsumer object is used to subscribe a charm and its workloads to a related service mesh.  Since it is common for a relation between applications to indicate traffic flow (ex: if DbConsumer Requires a DbProducer), the ServiceMeshConsumer provides an optional way to automate creation of traffic rules based on app relations. 
+
 To add service mesh support to your charm, you must add 3 relations in your charmcraft.yaml.
 
 ```
