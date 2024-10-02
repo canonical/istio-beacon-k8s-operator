@@ -326,7 +326,7 @@ class ServiceMeshProvider(Object):
             relation.data[self._charm.app]["labels"] = rel_data
 
     def mesh_info(self) -> List[MeshPolicy]:
-        """Return the relation data used to define authorization policies on the mesh."""
+        """Return the relation data that defines Policies requested by the related applications."""
         mesh_info = []
         for relation in self._charm.model.relations[self._relation_name]:
             policies_data = json.loads(relation.data[relation.app]["policies"])
