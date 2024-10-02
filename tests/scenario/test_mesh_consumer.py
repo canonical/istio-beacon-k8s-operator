@@ -36,6 +36,52 @@ def consumer_context(policies: typing.List[Policy]):
 
 ENDPOINT_A = Endpoint(hosts=[], ports=[80], methods=[], paths=[])
 
+WITH_COMPLEX_ENDPOINTS = (
+    [
+        Policy(
+            relation="rela",
+            endpoints=[
+                Endpoint(
+                    hosts=["localhost"],
+                    ports=[443, 9000],
+                    methods=["GET", "POST"],
+                    paths=["/metrics", "/data"],
+                ),
+                Endpoint(
+                    hosts=["example.com"],
+                    ports=[3000],
+                    methods=["DELETE"],
+                    paths=["/foobar"],
+                ),
+            ],
+            service=None,
+        )
+    ],
+    [
+        {
+            "source_app_name": "remote_a",
+            "source_namespace": "my_model",
+            "target_app_name": "consumer-charm",
+            "target_namespace": "my_model",
+            "target_service": None,
+            "endpoints": [
+                {
+                    "hosts": ["localhost"],
+                    "ports": [443, 9000],
+                    "methods": ["GET", "POST"],
+                    "paths": ["/metrics", "/data"],
+                },
+                {
+                    "hosts": ["example.com"],
+                    "ports": [3000],
+                    "methods": ["DELETE"],
+                    "paths": ["/foobar"],
+                },
+            ],
+        }
+    ],
+)
+
 REQUIRER = (
     [Policy(relation="rela", endpoints=[ENDPOINT_A], service=None)],
     [
@@ -92,7 +138,7 @@ PROVIDER_CMR = (
     ],
 )
 
-POLICY_DATA_PARAMS = [REQUIRER, REQUIRER_CMR, PROVIDER, PROVIDER_CMR]
+POLICY_DATA_PARAMS = [WITH_COMPLEX_ENDPOINTS, REQUIRER, REQUIRER_CMR, PROVIDER, PROVIDER_CMR]
 
 
 @pytest.mark.parametrize("policies,expected_data", POLICY_DATA_PARAMS)
