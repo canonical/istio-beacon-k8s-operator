@@ -262,6 +262,9 @@ class ServiceMeshConsumer(Object):
     def _check_cmr(self, mesh_relation: Relation) -> Optional[Relation]:
         """Check if the given relation is a cmr. If so return the associated cross_model_mesh relation."""
         for cmr_rel in self._cmr_relations:
+            # These are the app names as seen by the consumer and are local to the model. When
+            # establishing cross-model relations, it is not possible to represent the app with an
+            # already existing name. Thus these names will always be unique.
             if cmr_rel.app.name == mesh_relation.app.name:
                 if "cmr_data" not in cmr_rel.data[cmr_rel.app]:
                     # Data has not yet been provided
