@@ -18,6 +18,7 @@ from lightkube.resources.apps_v1 import Deployment
 from lightkube.resources.core_v1 import Namespace
 from lightkube_extensions.batch import KubernetesResourceManager, create_charm_default_labels
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
+from ops.pebble import ChangeError, Layer
 
 from models import AllowedRoutes, IstioWaypointResource, IstioWaypointSpec, Listener, Metadata
 
@@ -32,6 +33,8 @@ RESOURCE_TYPES = {
 WAYPOINT_RESOURCE_TYPES = {RESOURCE_TYPES["Gateway"]}
 WAYPOINT_LABEL = "istio-waypoint"
 
+METRICS_LABELS = {"charms.canonical.com/istio.io.waypoint.metrics": "aggregated"}
+
 
 class IstioBeaconCharm(ops.CharmBase):
     """Charm the service."""
@@ -42,29 +45,47 @@ class IstioBeaconCharm(ops.CharmBase):
         self._lightkube_field_manager: str = self.app.name
         self._lightkube_client = None
         self._managed_labels = f"{self.app.name}-{self.model.name}"
-
+        self._metrics_labels = ",".join(
+            [f"{key}={value}" for key, value in METRICS_LABELS.items()]
+        )
         # Configure Observability
         self._scraping = MetricsEndpointProvider(
             self,
             relation_name="metrics-endpoint",
-            jobs=[
-                {
-                    "metrics_path": "/stats/prometheus",
-                    "static_configs": [
-                        {
-                            "targets": [
-                                f"{self._managed_labels}-waypoint.{self.model.name}.svc:15020"
-                            ]
-                        }
-                    ],
-                }
-            ],
+            jobs=[{"static_configs": [{"targets": ["*:15090"]}]}],
         )
 
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.remove, self._on_remove)
         self.framework.observe(self.on["service-mesh"].relation_changed, self.on_mesh_changed)
         self.framework.observe(self.on["service-mesh"].relation_broken, self.on_mesh_broken)
+
+    def _setup_pebble_service(self):
+        """Define and start the metrics broadcast proxy Pebble service."""
+        container = self.unit.get_container("metrics-proxy")
+        if not container.can_connect():
+            return
+        pebble_layer = Layer(
+            {
+                "summary": "Metrics Broadcast Proxy Layer",
+                "description": "Pebble layer for metrics broadcast proxy",
+                "services": {
+                    "metrics-proxy": {
+                        "override": "replace",
+                        "summary": "Metrics Broadcast Proxy",
+                        "command": f"metrics-proxy --labels {self._metrics_labels}",
+                        "startup": "enabled",
+                    }
+                },
+            }
+        )
+
+        container.add_layer("metrics-proxy", pebble_layer, combine=True)
+
+        try:
+            container.replan()
+        except ChangeError as e:
+            logger.error(f"Error while replanning container: {e}")
 
     def _on_config_changed(self, _):
         """Event handler for config changed."""
@@ -143,6 +164,7 @@ class IstioBeaconCharm(ops.CharmBase):
         self._sync_waypoint_resources()
         if not self._is_waypoint_ready():
             raise RuntimeError("Waypoint's k8s deployment not ready, is istio properly installed?")
+        self._setup_pebble_service()
         self.unit.status = ActiveStatus()
 
     def _construct_waypoint(self):
@@ -150,7 +172,7 @@ class IstioBeaconCharm(ops.CharmBase):
             metadata=Metadata(
                 name=f"{self._managed_labels}-waypoint",
                 namespace=self.model.name,
-                labels={"istio.io/waypoint-for": "service"},
+                labels={"istio.io/waypoint-for": "service", **METRICS_LABELS},
             ),
             spec=IstioWaypointSpec(
                 gatewayClassName="istio-waypoint",
