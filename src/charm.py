@@ -9,6 +9,7 @@ import logging
 import time
 
 import ops
+from charms.istio_beacon_k8s.v0.service_mesh import ServiceMeshProvider
 from lightkube.core.client import Client
 from lightkube.core.exceptions import ApiError
 from lightkube.generic_resource import create_namespaced_resource
@@ -43,6 +44,8 @@ class IstioBeaconCharm(ops.CharmBase):
         self._managed_labels = f"{self.app.name}-{self.model.name}"
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.remove, self._on_remove)
+        self._mesh = ServiceMeshProvider(self, labels=self.mesh_labels())
+
         self.framework.observe(self.on["service-mesh"].relation_changed, self.on_mesh_changed)
         self.framework.observe(self.on["service-mesh"].relation_broken, self.on_mesh_broken)
 
@@ -110,7 +113,6 @@ class IstioBeaconCharm(ops.CharmBase):
         return False
 
     def _is_waypoint_ready(self) -> bool:
-
         if not self._is_waypoint_deployment_ready():
             return False
         return True
@@ -236,6 +238,11 @@ class IstioBeaconCharm(ops.CharmBase):
 
             namespace.metadata.labels.update(labels_to_remove)
             self._patch_namespace(namespace)
+
+    def mesh_labels(self):
+        """Labels required for a workload to join the mesh."""
+        # TODO: write this.
+        return {"foo": "bar"}
 
 
 if __name__ == "__main__":
