@@ -6,7 +6,10 @@
 from unittest.mock import patch
 
 import pytest
+import scenario
 from lightkube import Client
+
+from charm import IstioBeaconCharm
 
 
 @pytest.fixture(autouse=True)
@@ -21,3 +24,13 @@ def mock_lightkube_client(request):
             with patch.object(Client, "get"):
                 with patch.object(Client, "patch"):
                     yield
+
+
+@pytest.fixture()
+def istio_beacon_charm():
+    yield IstioBeaconCharm
+
+
+@pytest.fixture()
+def istio_beacon_context(istio_beacon_charm):
+    yield scenario.Context(charm_type=istio_beacon_charm)

@@ -132,10 +132,10 @@ class Method(str, enum.Enum):
 class Endpoint(pydantic.BaseModel):
     """Data type for a policy endpoint."""
 
-    hosts: List[str]
-    ports: List[int]
-    methods: List[Method]
-    paths: List[str]
+    hosts: Optional[List[str]] = None
+    ports: Optional[List[int]] = None
+    methods: Optional[List[Method]] = None
+    paths: Optional[List[str]] = None
 
 
 class Policy(pydantic.BaseModel):
@@ -143,7 +143,7 @@ class Policy(pydantic.BaseModel):
 
     relation: str
     endpoints: List[Endpoint]
-    service: Optional[str]
+    service: Optional[str] = None
 
 
 class MeshPolicy(pydantic.BaseModel):
@@ -153,7 +153,7 @@ class MeshPolicy(pydantic.BaseModel):
     source_namespace: str
     target_app_name: str
     target_namespace: str
-    target_service: Optional[str]
+    target_service: Optional[str] = None
     endpoints: List[Endpoint]
 
 
