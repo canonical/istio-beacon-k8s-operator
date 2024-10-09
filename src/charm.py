@@ -9,9 +9,8 @@ import logging
 import time
 
 import ops
-
-from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.istio_beacon_k8s.v0.service_mesh import ServiceMeshProvider
+from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from lightkube.core.client import Client
 from lightkube.core.exceptions import ApiError
 from lightkube.generic_resource import create_namespaced_resource
