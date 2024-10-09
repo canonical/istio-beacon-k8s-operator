@@ -170,6 +170,15 @@ class IstioBeaconCharm(ops.CharmBase):
         """Build authorization policies for all related applications."""
         authorization_policies = [None] * len(mesh_info)
         for i, policy in enumerate(mesh_info):
+            target_service = policy.target_service
+            if target_service is None:
+                target_service = policy.target_app_name
+                logger.info(
+                    f"Got policy for application '{policy.target_app_name}' that has no target_service. Defaulting to"
+                    f" application name '{target_service}'."
+                )
+            target_service = policy.target_service if policy.target_service else policy.target_app_name
+
             authorization_policies[i] = RESOURCE_TYPES["AuthorizationPolicy"](  # type: ignore
                 metadata=ObjectMeta(
                     # TODO: Each related app can define multiple policies that apply to the same source/target pair -
@@ -187,7 +196,7 @@ class IstioBeaconCharm(ops.CharmBase):
                         PolicyTargetReference(
                             kind="Service",
                             group="",
-                            name=policy.target_service,
+                            name=target_service,
                         )
                     ],
                     rules=[
