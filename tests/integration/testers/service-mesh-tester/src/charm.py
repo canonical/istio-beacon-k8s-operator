@@ -35,6 +35,7 @@ class ServiceMeshTester(CharmBase):
                         ],
                     ),
                 ],
+                auto_join=False,
             )
         except ops.TooManyRelatedAppsError as e:
             self.unit.status = BlockedStatus(e)
