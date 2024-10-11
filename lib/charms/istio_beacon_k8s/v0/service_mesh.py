@@ -107,9 +107,9 @@ import json
 import logging
 from typing import Dict, List, Optional
 
+import httpx
 import pydantic
 from lightkube.core.client import Client
-from lightkube.core.exceptions import ApiError as LightkubeApiError
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.apps_v1 import StatefulSet
 from lightkube.resources.core_v1 import ConfigMap
@@ -324,8 +324,8 @@ class ServiceMeshConsumer(Object):
         stateful_set = client.get(res=StatefulSet, name=self._charm.app.name)
         try:
             config_map = client.get(ConfigMap, self._label_configmap_name)
-        except LightkubeApiError as e:
-            if "not found" in str(e):
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
                 config_map = self._create_label_configmap(client)
             else:
                 raise
