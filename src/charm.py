@@ -244,7 +244,11 @@ class IstioBeaconCharm(ops.CharmBase):
         """Labels required for a workload to join the mesh."""
         if self.config["model-on-mesh"]:
             return {}
-        return {"istio.io/dataplane-mode": "ambient", "istio.io/use-waypoint": self._waypoint_name}
+        return {
+            "istio.io/dataplane-mode": "ambient",
+            "istio.io/use-waypoint": self._waypoint_name,
+            "istio.io/use-waypoint-namespace": self.model.name,
+        }
 
 
 if __name__ == "__main__":
