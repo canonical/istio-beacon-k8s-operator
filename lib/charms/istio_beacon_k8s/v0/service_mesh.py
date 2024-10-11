@@ -337,14 +337,7 @@ class ServiceMeshConsumer(Object):
                     labels[label] = None
         if stateful_set.spec:
             stateful_set.spec.template.metadata.labels.update(labels)
-        config_map.data = {
-            "labels": json.dumps(
-                {key: value for (key, value) in labels.items() if value is not None}
-            )
-        }
-        # TODO: We should look into whether it is possible to do the next two commands as one
-        # transaction. As it is now, if the code crashes between the two commands, we could end up
-        # leaving dangling labels on the StatefulSet.
+        config_map.data = {"labels": json.dumps(labels)}
         client.patch(res=ConfigMap, name=self._label_configmap_name, obj=config_map)
         client.patch(res=StatefulSet, name=self._charm.app.name, obj=stateful_set)
 
