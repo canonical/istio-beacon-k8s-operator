@@ -70,6 +70,10 @@ By using the above method, you can specify exactly which endpoints can be reache
 
 If a ServiceMeshConsumer is creating a Policy for a relation that is cross model, additional information is required to construct the policy. To facilitate this, the charms can also be related over the cross_model_mesh interface. When that relation is established, traffic will be allowed from the requirer to the provider.
 
+###Joining the Mesh
+
+For most charms, simply instantiating ServiceMeshConsumer should automatically configure the charm to be on the mesh. If your charm is the one of the old "podspec" style charms or your charm deploys custom k8s resources there is an addition step. You must apply the labels returned by `ServiceMeshConsumer.labels()` to your pods.
+
 ##Provider
 
 To provide a service mesh, instantiate the ServiceMeshProvider object in the __init__ method
@@ -104,13 +108,18 @@ import logging
 from typing import Dict, List, Optional
 
 import pydantic
+from lightkube.core.client import Client
+from lightkube.core.exceptions import ApiError as LightkubeApiError
+from lightkube.models.meta_v1 import ObjectMeta
+from lightkube.resources.apps_v1 import StatefulSet
+from lightkube.resources.core_v1 import ConfigMap
 from ops import CharmBase, Object, Relation
 
 LIBID = "3f40cb7e3569454a92ac2541c5ca0a0c"  # Never change this
 LIBAPI = 0
 LIBPATCH = 1
 
-PYDEPS = ["pydantic"]
+PYDEPS = ["lightkube", "pydantic"]
 
 logger = logging.getLogger(__name__)
 
@@ -174,6 +183,7 @@ class ServiceMeshConsumer(Object):
         cross_model_mesh_requires_name: str = "require-cmr-mesh",
         cross_model_mesh_provides_name: str = "provide-cmr-mesh",
         policies: Optional[List[Policy]] = None,
+        auto_join: bool = True,
     ):
         """Class used for joining a service mesh.
 
@@ -186,12 +196,21 @@ class ServiceMeshConsumer(Object):
             cross_model_mesh_provides_name: The relation name as defined in metadata.yaml or
                 charmcraft.yaml for the relation which provides the cross_model_mesh interface.
             policies: List of access policies this charm supports.
+            auto_join: Automatically join the mesh by applying labels to charm pods.
         """
         super().__init__(charm, mesh_relation_name)
         self._charm = charm
         self._relation = self._charm.model.get_relation(mesh_relation_name)
         self._cmr_relations = self._charm.model.relations[cross_model_mesh_provides_name]
         self._policies = policies or []
+        self._label_configmap_name = f"juju-service-mesh-{self._charm.app.name}-labels"
+        if auto_join:
+            self.framework.observe(
+                self._charm.on[mesh_relation_name].relation_changed, self._update_labels
+            )
+            self.framework.observe(
+                self._charm.on[mesh_relation_name].relation_broken, self._on_mesh_broken
+            )
         self.framework.observe(
             self._charm.on[mesh_relation_name].relation_created, self._relations_changed
         )
@@ -287,11 +306,59 @@ class ServiceMeshConsumer(Object):
         # should consider if there is a better way to do this.
         return self._charm.model.name
 
-    def labels(self):
+    def labels(self) -> dict:
         """Labels required for a pod to join the mesh."""
         if self._relation is None or "labels" not in self._relation.data[self._relation.app]:
             return {}
         return json.loads(self._relation.data[self._relation.app]["labels"])
+
+    def _on_mesh_broken(self, _event):
+        self._set_labels({})
+        self._delete_label_configmap()
+
+    def _update_labels(self, _event):
+        self._set_labels(self.labels())
+
+    def _set_labels(self, labels: dict) -> None:
+        client = Client(namespace=self._charm.model.name, field_manager=self._charm.app.name)
+        stateful_set = client.get(res=StatefulSet, name=self._charm.app.name)
+        try:
+            config_map = client.get(ConfigMap, self._label_configmap_name)
+        except LightkubeApiError as e:
+            if "not found" in str(e):
+                config_map = self._create_label_configmap(client)
+            else:
+                raise
+        if config_map.data:
+            config_map_labels = json.loads(config_map.data["labels"])
+            for label in config_map_labels:
+                if label not in labels:
+                    # The label was previously set. Setting it to None will delete it.
+                    labels[label] = None
+        if stateful_set.spec:
+            stateful_set.spec.template.metadata.labels.update(labels)
+        config_map.data = {"labels": json.dumps({key: value for (key, value) in labels.items() if value is not None})}
+        # TODO: We should look into whether it is possible to do the next two commands as one
+        # transaction. As it is now, if the code crashes between the two commands, we could end up
+        # leaving dangling labels on the StatefulSet.
+        client.patch(res=ConfigMap, name=self._label_configmap_name, obj=config_map)
+        client.patch(res=StatefulSet, name=self._charm.app.name, obj=stateful_set)
+
+    def _create_label_configmap(self, client) -> ConfigMap:
+        """Create an empty ConfigMap unique to this charm."""
+        obj = ConfigMap(
+                data={"labels": "{}"},
+            metadata=ObjectMeta(
+                name=self._label_configmap_name,
+                namespace=self._charm.model.name,
+            ),
+        )
+        client.create(obj=obj)
+        return obj
+
+    def _delete_label_configmap(self) -> None:
+        client = Client(namespace=self._charm.model.name, field_manager=self._charm.app.name)
+        clinet.delete(res=ConfigMap, name=self._label_configmap_name)
 
 
 class ServiceMeshProvider(Object):
