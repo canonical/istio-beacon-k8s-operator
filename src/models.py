@@ -3,6 +3,7 @@
 # Copyright 2024 Canonical Ltd.
 # See LICENSE file for licensing details.
 """This module defines Pydantic schemas for various resources used in the Kubernetes Gateway API."""
+
 from enum import Enum
 from typing import Dict, List, Optional
 

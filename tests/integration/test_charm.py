@@ -48,7 +48,7 @@ async def test_deploy_dependencies(ops_test: OpsTest):
 
 @pytest.mark.abort_on_fail
 async def test_deployment(ops_test: OpsTest, istio_beacon_charm):
-    await ops_test.model.deploy(istio_beacon_charm, application_name=APP_NAME, trust=True),
+    await ops_test.model.deploy(istio_beacon_charm, application_name=APP_NAME, trust=True)
     await ops_test.model.wait_for_idle([APP_NAME], status="active", timeout=1000)
 
 
@@ -68,7 +68,7 @@ async def test_mesh_config(ops_test: OpsTest):
 
 
 @pytest.mark.abort_on_fail
-async def test_service_mesh_relation(ops_test: OpsTest, sender_receiver_charm):
+async def test_service_mesh_relation(ops_test: OpsTest, service_mesh_tester):
     # Ensure model is on mesh
     await ops_test.model.applications[APP_NAME].set_config({"model-on-mesh": "true"})
 
@@ -76,10 +76,13 @@ async def test_service_mesh_relation(ops_test: OpsTest, sender_receiver_charm):
     resources = {"echo-server-image": "jmalloc/echo-server:v0.3.7"}
     # Applications that will be given authorization policies
     await ops_test.model.deploy(
-        sender_receiver_charm, application_name="receiver1", resources=resources
+        service_mesh_tester, application_name="receiver1", resources=resources
     )
     await ops_test.model.deploy(
-        sender_receiver_charm, application_name="sender1", resources=resources
+        service_mesh_tester, application_name="sender1", resources=resources
+    )
+    await ops_test.model.deploy(
+        service_mesh_tester, application_name="sender2", resources=resources
     )
     await ops_test.model.add_relation("receiver1:service-mesh", APP_NAME)
     await ops_test.model.add_relation("receiver1:inbound", "sender1:outbound")

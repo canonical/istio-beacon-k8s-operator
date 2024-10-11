@@ -178,7 +178,9 @@ class IstioBeaconCharm(ops.CharmBase):
                     f"Got policy for application '{policy.target_app_name}' that has no target_service. Defaulting to"
                     f" application name '{target_service}'."
                 )
-            target_service = policy.target_service if policy.target_service else policy.target_app_name
+            target_service = (
+                policy.target_service if policy.target_service else policy.target_app_name
+            )
 
             authorization_policies[i] = RESOURCE_TYPES["AuthorizationPolicy"](  # type: ignore
                 metadata=ObjectMeta(
