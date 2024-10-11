@@ -17,12 +17,17 @@ config:
 provides:
   inbound:
     interface: service
+  provide-cmr-mesh:
+    interface: cross_model_mesh
 
 requires:
   outbound:
     interface: service
   service-mesh:
+    limit: 1
     interface: service_mesh
+  require-cmr-mesh:
+    interface: cross_model_mesh
 
 containers:
   echo-server:
