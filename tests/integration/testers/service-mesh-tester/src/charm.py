@@ -4,7 +4,7 @@
 import logging
 
 import ops
-from charms.istio_beacon_k8s.v0.service_mesh import Endpoint, Policy, ServiceMeshRequirer
+from charms.istio_beacon_k8s.v0.service_mesh import Endpoint, Policy, ServiceMeshConsumer
 from ops import BlockedStatus
 from ops.charm import CharmBase
 from ops.main import main
@@ -21,7 +21,7 @@ class ServiceMeshTester(CharmBase):
         self.unit.set_ports(*self._ports)
 
         try:
-            self._mesh = ServiceMeshRequirer(
+            self._mesh = ServiceMeshConsumer(
                 self,
                 policies=[
                     Policy(
