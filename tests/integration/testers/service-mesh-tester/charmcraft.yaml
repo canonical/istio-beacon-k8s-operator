@@ -40,3 +40,5 @@ parts:
       - ops
       - requests
       - pydantic-core
+      - pydantic
+      - maturin

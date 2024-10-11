@@ -43,6 +43,8 @@ parts:
       # Pydantic is not actually used by the lib but charmcraft install pydeps from libs even if
       # they are not used.
       - pydantic-core
+      - pydantic
+      - maturin
     plugin: charm
     build-packages: [git]
 
