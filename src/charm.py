@@ -42,6 +42,7 @@ class IstioBeaconCharm(ops.CharmBase):
         self._lightkube_field_manager: str = self.app.name
         self._lightkube_client = None
         self._managed_labels = f"{self.app.name}-{self.model.name}"
+        self._waypoint_name = f"{self.app.name}-{self.model.name}-waypoint"
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.remove, self._on_remove)
         self._mesh = ServiceMeshProvider(self, labels=self.mesh_labels())
@@ -96,7 +97,7 @@ class IstioBeaconCharm(ops.CharmBase):
             try:
                 deployment = self.lightkube_client.get(
                     Deployment,
-                    name=f"{self._managed_labels}-waypoint",
+                    name=self._waypoint_name,
                     namespace=self.model.name,
                 )
                 if (
@@ -130,7 +131,7 @@ class IstioBeaconCharm(ops.CharmBase):
     def _construct_waypoint(self):
         gateway = IstioWaypointResource(
             metadata=Metadata(
-                name=f"{self._managed_labels}-waypoint",
+                name=self._waypoint_name,
                 namespace=self.model.name,
                 labels={"istio.io/waypoint-for": "service"},
             ),
@@ -206,7 +207,7 @@ class IstioBeaconCharm(ops.CharmBase):
             return
 
         labels_to_add = {
-            "istio.io/use-waypoint": f"{self._managed_labels}-waypoint",
+            "istio.io/use-waypoint": self._waypoint_name,
             "istio.io/dataplane-mode": "ambient",
             "charms.canonical.com/istio.io.waypoint.managed-by": f"{self._managed_labels}",
         }
@@ -241,8 +242,13 @@ class IstioBeaconCharm(ops.CharmBase):
 
     def mesh_labels(self):
         """Labels required for a workload to join the mesh."""
-        # TODO: write this.
-        return {"foo": "bar"}
+        if self.config["model-on-mesh"]:
+            return {}
+        return {
+            "istio.io/dataplane-mode": "ambient",
+            "istio.io/use-waypoint": self._waypoint_name,
+            "istio.io/use-waypoint-namespace": self.model.name,
+        }
 
 
 if __name__ == "__main__":
