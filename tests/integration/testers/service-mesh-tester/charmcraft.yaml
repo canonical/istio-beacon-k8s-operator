@@ -39,3 +39,4 @@ parts:
     charm-binary-python-packages:
       - ops
       - requests
+      - pydantic-core
