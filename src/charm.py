@@ -180,13 +180,8 @@ class IstioBeaconCharm(ops.CharmBase):
 
             authorization_policies[i] = RESOURCE_TYPES["AuthorizationPolicy"](  # type: ignore
                 metadata=ObjectMeta(
-                    # TODO: Each related app can define multiple policies that apply to the same source/target pair -
-                    #  how do we name the policies below to account for that?  For now, we suffix the index of the
-                    #  policy in the data bag, but that isn't great because it means a policy is added to the start of
-                    #  the list (or even just reorder the existing list) then all other policies are renamed causing
-                    #  them to be deleted and recreated.
-                    #  Naming these with just source_app_name-target_app_name isn't enough, is it?  I think we need to
-                    #  support multiple policies per source/target pair?
+                    # TODO: Improve how we name these policies.  See
+                    #  https://github.com/canonical/istio-beacon-k8s-operator/issues/22 for more details.
                     name=f"{self._managed_labels}-policy-{policy.source_app_name}-{policy.target_app_name}.{i}",
                     namespace=self.model.name,
                 ),
