@@ -4,6 +4,7 @@
 # See LICENSE file for licensing details.
 
 import logging
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Optional
@@ -13,6 +14,11 @@ import sh
 import yaml
 from helpers import validate_labels
 from pytest_operator.plugin import OpsTest
+from tenacity import (
+    retry,
+    stop_after_delay,
+    wait_exponential,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -71,29 +77,25 @@ async def test_mesh_config(ops_test: OpsTest):
 async def test_service_mesh_relation(ops_test: OpsTest, service_mesh_tester):
     # Ensure model is on mesh
     await ops_test.model.applications[APP_NAME].set_config({"model-on-mesh": "true"})
+    time.sleep(5)  # Wait for the model to be on mesh
 
     # Deploy tester charms
     resources = {"echo-server-image": "jmalloc/echo-server:v0.3.7"}
     # Applications that will be given authorization policies
+    # receiver1 require trust because the service-mesh library interacts with k8s objects.
     await ops_test.model.deploy(
-        service_mesh_tester, application_name="receiver1", resources=resources
+        service_mesh_tester, application_name="receiver1", resources=resources, trust=True
     )
     await ops_test.model.deploy(
-        service_mesh_tester, application_name="sender1", resources=resources
+        service_mesh_tester, application_name="sender1", resources=resources, trust=True
     )
     await ops_test.model.deploy(
-        service_mesh_tester, application_name="sender2", resources=resources
+        service_mesh_tester, application_name="sender2", resources=resources, trust=True
     )
     await ops_test.model.add_relation("receiver1:service-mesh", APP_NAME)
     await ops_test.model.add_relation("receiver1:inbound", "sender1:outbound")
 
-    await ops_test.model.wait_for_idle([APP_NAME])
-
-    await ops_test.model.wait_for_idle(["receiver1", "sender1", "sender2"])
-
-    await ops_test.model.wait_for_idle(
-        [APP_NAME], status="active", timeout=1000, raise_on_error=False
-    )
+    await ops_test.model.wait_for_idle([APP_NAME, "receiver1", "sender1", "sender2"])
 
     # Assert that communication is correctly controlled
     # sender/0 can talk to receiver on any combination of:
@@ -101,17 +103,18 @@ async def test_service_mesh_relation(ops_test: OpsTest, service_mesh_tester):
     # * path: [/foo, /bar/]
     # * method: [GET, POST]
     # but not others
-    assert get_code_for_request("sender1/0", "http://receiver1:8080/foo") == 200
-    assert get_code_for_request("sender1/0", "http://receiver1:8081/foo") == 200
-    assert get_code_for_request("sender1/0", "http://receiver1:8080/bar/") == 200
-    assert get_code_for_request("sender1/0", "http://receiver1:8080/foo", method="post") == 200
-    assert get_code_for_request("sender1/0", "http://receiver1:8080/foo", method="delete") == 403
+    assert_request_returns_http_code("sender1/0", "http://receiver1:8080/foo", code=200)
+    assert_request_returns_http_code("sender1/0", "http://receiver1:8081/foo", code=200)
+    assert_request_returns_http_code("sender1/0", "http://receiver1:8080/bar/", code=200)
+    assert_request_returns_http_code("sender1/0", "http://receiver1:8080/foo", method="post", code=200)
+    assert_request_returns_http_code("sender1/0", "http://receiver1:8080/foo", method="delete", code=403)
 
     # other service accounts should get a 403 error
-    assert get_code_for_request("sender2/0", "http://receiver1:8080/foo") == 403
+    assert_request_returns_http_code("sender2/0", "http://receiver1:8080/foo", code=403)
 
 
-def get_code_for_request(source_unit: str, target_url: str, method: str = "get") -> int:
+@retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_delay(60), reraise=True)
+def assert_request_returns_http_code(source_unit: str, target_url: str, method: str = "get", code: int = 200):
     """Get the status code for a request from a source unit to a target URL on a given method.
 
     Note that if the request fails (ex: python script raises an exception) the exit code will be returned.
@@ -122,7 +125,9 @@ def get_code_for_request(source_unit: str, target_url: str, method: str = "get")
             f'python3 -c "import requests; resp = requests.{method}(\\"{target_url}\\"); print(resp.status_code)"',
             _return_cmd=True,
         )
-        return int(str(resp).strip())
+        returned_code = int(str(resp).strip())
     except sh.ErrorReturnCode as e:
-        # Returns
-        return e.exit_code
+        returned_code = e.exit_code
+
+    assert returned_code == code, f"Expected {code} but got {returned_code} for {source_unit} -> {target_url} on {method}"
+
