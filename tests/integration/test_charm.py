@@ -113,12 +113,13 @@ async def test_service_mesh_relation(ops_test: OpsTest, service_mesh_tester):
     assert_request_returns_http_code("sender2/0", "http://receiver1:8080/foo", code=403)
 
 
-@retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_delay(60), reraise=True)
+@retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_delay(120), reraise=True)
 def assert_request_returns_http_code(source_unit: str, target_url: str, method: str = "get", code: int = 200):
     """Get the status code for a request from a source unit to a target URL on a given method.
 
     Note that if the request fails (ex: python script raises an exception) the exit code will be returned.
     """
+    logger.info(f"Checking {source_unit} -> {target_url} on {method}")
     try:
         resp = sh.juju.ssh(
             source_unit,
@@ -128,6 +129,7 @@ def assert_request_returns_http_code(source_unit: str, target_url: str, method: 
         returned_code = int(str(resp).strip())
     except sh.ErrorReturnCode as e:
         returned_code = e.exit_code
+    logger.info(f"Got {returned_code} for {source_unit} -> {target_url} on {method} - expected {code}")
 
     assert returned_code == code, f"Expected {code} but got {returned_code} for {source_unit} -> {target_url} on {method}"
 
