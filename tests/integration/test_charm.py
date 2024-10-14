@@ -106,15 +106,23 @@ async def test_service_mesh_relation(ops_test: OpsTest, service_mesh_tester):
     assert_request_returns_http_code("sender1/0", "http://receiver1:8080/foo", code=200)
     assert_request_returns_http_code("sender1/0", "http://receiver1:8081/foo", code=200)
     assert_request_returns_http_code("sender1/0", "http://receiver1:8080/bar/", code=200)
-    assert_request_returns_http_code("sender1/0", "http://receiver1:8080/foo", method="post", code=200)
-    assert_request_returns_http_code("sender1/0", "http://receiver1:8080/foo", method="delete", code=403)
+    assert_request_returns_http_code(
+        "sender1/0", "http://receiver1:8080/foo", method="post", code=200
+    )
+    assert_request_returns_http_code(
+        "sender1/0", "http://receiver1:8080/foo", method="delete", code=403
+    )
 
     # other service accounts should get a 403 error
     assert_request_returns_http_code("sender2/0", "http://receiver1:8080/foo", code=403)
 
 
-@retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_delay(120), reraise=True)
-def assert_request_returns_http_code(source_unit: str, target_url: str, method: str = "get", code: int = 200):
+@retry(
+    wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_delay(120), reraise=True
+)
+def assert_request_returns_http_code(
+    source_unit: str, target_url: str, method: str = "get", code: int = 200
+):
     """Get the status code for a request from a source unit to a target URL on a given method.
 
     Note that if the request fails (ex: python script raises an exception) the exit code will be returned.
@@ -129,7 +137,10 @@ def assert_request_returns_http_code(source_unit: str, target_url: str, method: 
         returned_code = int(str(resp).strip())
     except sh.ErrorReturnCode as e:
         returned_code = e.exit_code
-    logger.info(f"Got {returned_code} for {source_unit} -> {target_url} on {method} - expected {code}")
+    logger.info(
+        f"Got {returned_code} for {source_unit} -> {target_url} on {method} - expected {code}"
+    )
 
-    assert returned_code == code, f"Expected {code} but got {returned_code} for {source_unit} -> {target_url} on {method}"
-
+    assert (
+        returned_code == code
+    ), f"Expected {code} but got {returned_code} for {source_unit} -> {target_url} on {method}"
