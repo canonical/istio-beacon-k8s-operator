@@ -136,7 +136,11 @@ def assert_request_returns_http_code(
         )
         returned_code = int(str(resp).strip())
     except sh.ErrorReturnCode as e:
+        logger.warning(f"Got exit code {e.exit_code} executing sh.juju.ssh")
+        logger.warning(f"STDOUT: {e.stdout}")
+        logger.warning(f"STDERR: {e.stderr}")
         returned_code = e.exit_code
+
     logger.info(
         f"Got {returned_code} for {source_unit} -> {target_url} on {method} - expected {code}"
     )
