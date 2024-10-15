@@ -12,6 +12,7 @@ show_missing = true
 [tool.pytest.ini_options]
 minversion = "6.0"
 log_cli_level = "INFO"
+log_format = "%(asctime)s %(levelname)-9s %(module)s:%(filename)s:%(lineno)d %(message)s"
 
 # Linting tools configuration
 [tool.ruff]
@@ -35,7 +36,9 @@ extend-ignore = [
     "N805",
 ]
 ignore = ["E501", "D107"]
-per-file-ignores = {"tests/*" = ["D100","D101","D102","D103","D104"]}
+# ignore N815 in src/models.py because the class variables are defined to match the real kubernetes names.  Otherwise,
+# names like "notHosts" would fail the linting check.
+per-file-ignores = {"tests/*" = ["D100","D101","D102","D103","D104"], "src/models.py" = ["N815"]}
 
 [tool.codespell]
 skip = "build,lib,venv,icon.svg,.tox,.git,.mypy_cache,.ruff_cache,.coverage"

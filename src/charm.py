@@ -19,7 +19,20 @@ from lightkube.resources.core_v1 import Namespace
 from lightkube_extensions.batch import KubernetesResourceManager, create_charm_default_labels
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
 
-from models import AllowedRoutes, IstioWaypointResource, IstioWaypointSpec, Listener, Metadata
+from models import (
+    AllowedRoutes,
+    AuthorizationPolicySpec,
+    From,
+    IstioWaypointResource,
+    IstioWaypointSpec,
+    Listener,
+    Metadata,
+    Operation,
+    PolicyTargetReference,
+    Rule,
+    Source,
+    To,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,10 +40,18 @@ RESOURCE_TYPES = {
     "Gateway": create_namespaced_resource(
         "gateway.networking.k8s.io", "v1", "Gateway", "gateways"
     ),
+    "AuthorizationPolicy": create_namespaced_resource(
+        "security.istio.io",
+        "v1",
+        "AuthorizationPolicy",
+        "authorizationpolicies",
+    ),
 }
 
-WAYPOINT_RESOURCE_TYPES = {RESOURCE_TYPES["Gateway"]}
+AUTHORIZATION_POLICY_LABEL = "istio-authorization-policy"
+AUTHORIZATION_POLICY_RESOURCE_TYPES = {RESOURCE_TYPES["AuthorizationPolicy"]}
 WAYPOINT_LABEL = "istio-waypoint"
+WAYPOINT_RESOURCE_TYPES = {RESOURCE_TYPES["Gateway"]}
 
 
 class IstioBeaconCharm(ops.CharmBase):
@@ -65,8 +86,11 @@ class IstioBeaconCharm(ops.CharmBase):
     def _on_remove(self, _):
         """Event handler for remove."""
         self._remove_labels()
-        krm = self._get_waypoint_resource_manager()
-        krm.delete()
+        for krm in (
+            self._get_waypoint_resource_manager(),
+            self._get_authorization_policy_resource_manager(),
+        ):
+            krm.delete()
 
     @property
     def lightkube_client(self):
@@ -76,6 +100,16 @@ class IstioBeaconCharm(ops.CharmBase):
                 namespace=self.model.name, field_manager=self._lightkube_field_manager
             )
         return self._lightkube_client
+
+    def _get_authorization_policy_resource_manager(self):
+        return KubernetesResourceManager(
+            labels=create_charm_default_labels(
+                self.app.name, self.model.name, scope=AUTHORIZATION_POLICY_LABEL
+            ),
+            resource_types=AUTHORIZATION_POLICY_RESOURCE_TYPES,  # pyright: ignore
+            lightkube_client=self.lightkube_client,
+            logger=logger,
+        )
 
     def _get_waypoint_resource_manager(self):
         return KubernetesResourceManager(
@@ -122,11 +156,76 @@ class IstioBeaconCharm(ops.CharmBase):
         if not self.unit.is_leader():
             self.unit.status = BlockedStatus("Waypoint can only be provided on the leader unit.")
             return
+
         self.unit.status = MaintenanceStatus("Validating waypoint readiness")
         self._sync_waypoint_resources()
         if not self._is_waypoint_ready():
             raise RuntimeError("Waypoint's k8s deployment not ready, is istio properly installed?")
+
+        self.unit.status = MaintenanceStatus("Updating AuthorizationPolicies")
+        self._sync_authorization_policies()
+
         self.unit.status = ActiveStatus()
+
+    def _build_authorization_policies(self, mesh_info):
+        """Build authorization policies for all related applications."""
+        authorization_policies = [None] * len(mesh_info)
+        for i, policy in enumerate(mesh_info):
+            target_service = policy.target_service or policy.target_app_name
+            if policy.target_service is None:
+                logger.info(
+                    f"Got policy for application '{policy.target_app_name}' that has no target_service. "
+                    f"Defaulting to application name '{target_service}'."
+                )
+
+            authorization_policies[i] = RESOURCE_TYPES["AuthorizationPolicy"](  # type: ignore
+                metadata=ObjectMeta(
+                    # TODO: Improve how we name these policies.  See
+                    #  https://github.com/canonical/istio-beacon-k8s-operator/issues/22 for more details.
+                    name=f"{self._managed_labels}-policy-{policy.source_app_name}-{policy.target_app_name}.{i}",
+                    namespace=self.model.name,
+                ),
+                spec=AuthorizationPolicySpec(
+                    targetRefs=[
+                        PolicyTargetReference(
+                            kind="Service",
+                            group="",
+                            name=target_service,
+                        )
+                    ],
+                    rules=[
+                        Rule(
+                            from_=[  # type: ignore # this is accessible via an alias
+                                From(
+                                    source=Source(
+                                        principals=[
+                                            _get_peer_identity_for_juju_application(
+                                                policy.source_app_name, self.model.name
+                                            )
+                                        ]
+                                    )
+                                )
+                            ],
+                            to=[
+                                To(
+                                    operation=Operation(
+                                        # TODO: Make these ports strings instead of ints in endpoint?
+                                        ports=[str(p) for p in endpoint.ports],
+                                        hosts=endpoint.hosts,
+                                        methods=endpoint.methods,
+                                        paths=endpoint.paths,
+                                    )
+                                )
+                                for endpoint in policy.endpoints
+                            ],
+                        )
+                    ],
+                    # by_alias=True because the model includes an alias for the `from` field
+                    # exclude_unset=True because unset fields will be treated as their default values in Kubernetes
+                    # exclude_none=True because null values in this data always mean the Kubernetes default
+                ).model_dump(by_alias=True, exclude_unset=True, exclude_none=True),
+            )
+        return authorization_policies
 
     def _construct_waypoint(self):
         gateway = IstioWaypointResource(
@@ -152,6 +251,14 @@ class IstioBeaconCharm(ops.CharmBase):
             metadata=ObjectMeta.from_dict(gateway.metadata.model_dump()),
             spec=gateway.spec.model_dump(),
         )
+
+    def _sync_authorization_policies(self):
+        """Sync authorization policies."""
+        krm = self._get_authorization_policy_resource_manager()
+        authorization_policies = self._build_authorization_policies(self._mesh.mesh_info())
+        logger.debug("Reconciling state of AuthorizationPolicies to:")
+        logger.debug(authorization_policies)
+        krm.reconcile(authorization_policies)  # type: ignore
 
     def _sync_waypoint_resources(self):
         resources_list = []
@@ -249,6 +356,29 @@ class IstioBeaconCharm(ops.CharmBase):
             "istio.io/use-waypoint": self._waypoint_name,
             "istio.io/use-waypoint-namespace": self.model.name,
         }
+
+
+def _get_peer_identity_for_juju_application(app_name, namespace):
+    """Return a Juju application's peer identity.
+
+    Format returned is defined by `principals` in
+    [this reference](https://istio.io/latest/docs/reference/config/security/authorization-policy/#Source):
+
+    This function relies on the Juju convention that each application gets a ServiceAccount of the same name in the same
+    namespace.
+    """
+    service_account = app_name
+    return _get_peer_identity_for_service_account(service_account, namespace)
+
+
+def _get_peer_identity_for_service_account(service_account, namespace):
+    """Return a ServiceAccount's peer identity.
+
+    Format returned is defined by `principals` in
+    [this reference](https://istio.io/latest/docs/reference/config/security/authorization-policy/#Source):
+        "cluster.local/ns/{namespace}/sa/{service_account}"
+    """
+    return f"cluster.local/ns/{namespace}/sa/{service_account}"
 
 
 if __name__ == "__main__":
