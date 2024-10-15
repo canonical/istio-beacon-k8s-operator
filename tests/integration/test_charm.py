@@ -103,25 +103,33 @@ async def test_service_mesh_relation(ops_test: OpsTest, service_mesh_tester):
     # * path: [/foo, /bar/]
     # * method: [GET, POST]
     # but not others
-    assert_request_returns_http_code("sender1/0", "http://receiver1:8080/foo", code=200)
-    assert_request_returns_http_code("sender1/0", "http://receiver1:8081/foo", code=200)
-    assert_request_returns_http_code("sender1/0", "http://receiver1:8080/bar/", code=200)
     assert_request_returns_http_code(
-        "sender1/0", "http://receiver1:8080/foo", method="post", code=200
+        ops_test.model.name, "sender1/0", "http://receiver1:8080/foo", code=200
     )
     assert_request_returns_http_code(
-        "sender1/0", "http://receiver1:8080/foo", method="delete", code=403
+        ops_test.model.name, "sender1/0", "http://receiver1:8081/foo", code=200
+    )
+    assert_request_returns_http_code(
+        ops_test.model.name, "sender1/0", "http://receiver1:8080/bar/", code=200
+    )
+    assert_request_returns_http_code(
+        ops_test.model.name, "sender1/0", "http://receiver1:8080/foo", method="post", code=200
+    )
+    assert_request_returns_http_code(
+        ops_test.model.name, "sender1/0", "http://receiver1:8080/foo", method="delete", code=403
     )
 
     # other service accounts should get a 403 error
-    assert_request_returns_http_code("sender2/0", "http://receiver1:8080/foo", code=403)
+    assert_request_returns_http_code(
+        ops_test.model.name, "sender2/0", "http://receiver1:8080/foo", code=403
+    )
 
 
 @retry(
     wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_delay(120), reraise=True
 )
 def assert_request_returns_http_code(
-    source_unit: str, target_url: str, method: str = "get", code: int = 200
+    model: str, source_unit: str, target_url: str, method: str = "get", code: int = 200
 ):
     """Get the status code for a request from a source unit to a target URL on a given method.
 
@@ -130,6 +138,8 @@ def assert_request_returns_http_code(
     logger.info(f"Checking {source_unit} -> {target_url} on {method}")
     try:
         resp = sh.juju.ssh(
+            "-m",
+            model,
             source_unit,
             f'python3 -c "import requests; resp = requests.{method}(\\"{target_url}\\"); print(resp.status_code)"',
             _return_cmd=True,
