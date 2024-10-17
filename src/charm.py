@@ -7,6 +7,7 @@
 
 import logging
 import time
+from typing import Dict
 
 import ops
 from charms.istio_beacon_k8s.v0.service_mesh import ServiceMeshProvider
@@ -34,8 +35,6 @@ RESOURCE_TYPES = {
 WAYPOINT_RESOURCE_TYPES = {RESOURCE_TYPES["Gateway"]}
 WAYPOINT_LABEL = "istio-waypoint"
 
-METRICS_LABELS = {"charms.canonical.com/istio.io.waypoint.metrics": "aggregated"}
-
 
 class IstioBeaconCharm(ops.CharmBase):
     """Charm the service."""
@@ -46,52 +45,58 @@ class IstioBeaconCharm(ops.CharmBase):
         self._lightkube_field_manager: str = self.app.name
         self._lightkube_client = None
         self._managed_labels = f"{self.app.name}-{self.model.name}"
-        self._metrics_labels = ",".join(
-            [f"{key}={value}" for key, value in METRICS_LABELS.items()]
-        )
+        self._telemetry_labels = {
+            f"charms.canonical.com/{self.model.name}.{self.app.name}.telemetry": "aggregated"
+        }
         # Configure Observability
         self._scraping = MetricsEndpointProvider(
             self,
-            relation_name="metrics-endpoint",
             jobs=[{"static_configs": [{"targets": ["*:15090"]}]}],
         )
 
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.remove, self._on_remove)
+        self.framework.observe(
+            self.on.metrics_proxy_pebble_ready, self._metrics_proxy_pebble_ready
+        )
         self._mesh = ServiceMeshProvider(self, labels=self.mesh_labels())
 
         self.framework.observe(self.on["service-mesh"].relation_changed, self.on_mesh_changed)
         self.framework.observe(self.on["service-mesh"].relation_broken, self.on_mesh_broken)
 
-    def _setup_pebble_service(self):
+    def _setup_proxy_pebble_service(self):
         """Define and start the metrics broadcast proxy Pebble service."""
-        container = self.unit.get_container("metrics-proxy")
-        if not container.can_connect():
+        proxy_container = self.unit.get_container("metrics-proxy")
+        if not proxy_container.can_connect():
             return
-        pebble_layer = Layer(
+        proxy_layer = Layer(
             {
                 "summary": "Metrics Broadcast Proxy Layer",
-                "description": "Pebble layer for metrics broadcast proxy",
+                "description": "Pebble layer for the metrics broadcast proxy",
                 "services": {
                     "metrics-proxy": {
                         "override": "replace",
                         "summary": "Metrics Broadcast Proxy",
-                        "command": f"metrics-proxy --labels {self._metrics_labels}",
+                        "command": f"metrics-proxy --labels {self.format_labels(self._telemetry_labels)}",
                         "startup": "enabled",
                     }
                 },
             }
         )
 
-        container.add_layer("metrics-proxy", pebble_layer, combine=True)
+        proxy_container.add_layer("metrics-proxy", proxy_layer, combine=True)
 
         try:
-            container.replan()
+            proxy_container.replan()
         except ChangeError as e:
-            logger.error(f"Error while replanning container: {e}")
+            logger.error(f"Error while replanning proxy container: {e}")
 
     def _on_config_changed(self, _):
         """Event handler for config changed."""
+        self._sync_all_resources()
+
+    def _metrics_proxy_pebble_ready(self, _):
+        """Event handler for metrics_proxy_pebble_ready."""
         self._sync_all_resources()
 
     def on_mesh_changed(self, _):
@@ -166,7 +171,7 @@ class IstioBeaconCharm(ops.CharmBase):
         self._sync_waypoint_resources()
         if not self._is_waypoint_ready():
             raise RuntimeError("Waypoint's k8s deployment not ready, is istio properly installed?")
-        self._setup_pebble_service()
+        self._setup_proxy_pebble_service()
         self.unit.status = ActiveStatus()
 
     def _construct_waypoint(self):
@@ -174,7 +179,7 @@ class IstioBeaconCharm(ops.CharmBase):
             metadata=Metadata(
                 name=f"{self._managed_labels}-waypoint",
                 namespace=self.model.name,
-                labels={"istio.io/waypoint-for": "service", **METRICS_LABELS},
+                labels={"istio.io/waypoint-for": "service", **self._telemetry_labels},
             ),
             spec=IstioWaypointSpec(
                 gatewayClassName="istio-waypoint",
@@ -285,6 +290,11 @@ class IstioBeaconCharm(ops.CharmBase):
         """Labels required for a workload to join the mesh."""
         # TODO: write this.
         return {"foo": "bar"}
+
+    @staticmethod
+    def format_labels(label_dict: Dict[str, str]) -> str:
+        """Format a dictionary into a comma-separated string of key=value pairs."""
+        return ",".join(f"{key}={value}" for key, value in label_dict.items())
 
 
 if __name__ == "__main__":
