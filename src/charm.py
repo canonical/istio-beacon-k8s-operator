@@ -76,7 +76,6 @@ class IstioBeaconCharm(ops.CharmBase):
             jobs=[{"static_configs": [{"targets": ["*:15090"]}]}],
         )
 
-
         self._waypoint_name = f"{self.app.name}-{self.model.name}-waypoint"
 
         self.framework.observe(self.on.config_changed, self._on_config_changed)

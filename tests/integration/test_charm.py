@@ -57,10 +57,10 @@ async def test_deploy_dependencies(ops_test: OpsTest):
 
 @pytest.mark.abort_on_fail
 async def test_deployment(ops_test: OpsTest, istio_beacon_charm):
-    await istio_beacon.model.deploy(
+    await ops_test.model.deploy(
         istio_beacon_charm, resources=resources, application_name=APP_NAME, trust=True
     )
-    await istio_beacon.model.wait_for_idle([APP_NAME], status="active", timeout=1000)
+    await ops_test.model.wait_for_idle([APP_NAME], status="active", timeout=1000)
 
 
 @pytest.mark.abort_on_fail
