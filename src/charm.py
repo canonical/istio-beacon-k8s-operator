@@ -407,6 +407,11 @@ class IstioBeaconCharm(ops.CharmBase):
             "istio.io/use-waypoint-namespace": self.model.name,
         }
 
+    @staticmethod
+    def format_labels(label_dict: Dict[str, str]) -> str:
+        """Format a dictionary into a comma-separated string of key=value pairs."""
+        return ",".join(f"{key}={value}" for key, value in label_dict.items())
+
 
 def _get_peer_identity_for_juju_application(app_name, namespace):
     """Return a Juju application's peer identity.
@@ -429,11 +434,6 @@ def _get_peer_identity_for_service_account(service_account, namespace):
         "cluster.local/ns/{namespace}/sa/{service_account}"
     """
     return f"cluster.local/ns/{namespace}/sa/{service_account}"
-
-    @staticmethod
-    def format_labels(label_dict: Dict[str, str]) -> str:
-        """Format a dictionary into a comma-separated string of key=value pairs."""
-        return ",".join(f"{key}={value}" for key, value in label_dict.items())
 
 
 if __name__ == "__main__":
