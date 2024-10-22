@@ -219,6 +219,10 @@ class IstioBeaconCharm(ops.CharmBase):
 
     def _build_authorization_policies(self, mesh_info):
         """Build authorization policies for all related applications."""
+        if self.config["hardened"] is False:
+            logger.info("Hardened mode is disabled. Skipping AuthorizationPolicy creation.")
+            return []
+
         authorization_policies = [None] * len(mesh_info)
         for i, policy in enumerate(mesh_info):
             target_service = policy.target_service or policy.target_app_name

@@ -9,6 +9,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Optional
 
+import lightkube
 import pytest
 import sh
 import yaml
@@ -19,6 +20,8 @@ from tenacity import (
     stop_after_delay,
     wait_exponential,
 )
+
+from charm import RESOURCE_TYPES
 
 logger = logging.getLogger(__name__)
 
@@ -80,8 +83,16 @@ async def test_mesh_config(ops_test: OpsTest):
 
 @pytest.mark.abort_on_fail
 async def test_service_mesh_relation(ops_test: OpsTest, service_mesh_tester):
+    """Tests the life cycle around the service-mesh relation.
+
+    Includes testing:
+    * that 'hardened' works as expected
+    * that authorization policies are configured properly, by testing communication between workloads
+    """
     # Ensure model is on mesh
-    await ops_test.model.applications[APP_NAME].set_config({"model-on-mesh": "true"})
+    await ops_test.model.applications[APP_NAME].set_config(
+        {"model-on-mesh": "true", "hardened": "false"}
+    )
     time.sleep(5)  # Wait for the model to be on mesh
 
     # Deploy tester charms
@@ -101,6 +112,21 @@ async def test_service_mesh_relation(ops_test: OpsTest, service_mesh_tester):
     await ops_test.model.add_relation("receiver1:inbound", "sender1:outbound")
 
     await ops_test.model.wait_for_idle([APP_NAME, "receiver1", "sender1", "sender2"])
+
+    # Assert that, with hardened=False, the authorization policies are not created
+    client = lightkube.Client()
+    policies = list(
+        client.list(RESOURCE_TYPES["AuthorizationPolicy"], namespace=ops_test.model.name)
+    )
+    assert len(policies) == 0
+
+    # Assert that, with hardened=True, the authorization policies are created and routing works
+    await ops_test.model.applications[APP_NAME].set_config({"hardened": "true"})
+    await ops_test.model.wait_for_idle([APP_NAME], status="active", timeout=1000)
+    policies = list(
+        client.list(RESOURCE_TYPES["AuthorizationPolicy"], namespace=ops_test.model.name)
+    )
+    assert len(policies) > 0
 
     # Assert that communication is correctly controlled
     # sender/0 can talk to receiver on any combination of:
@@ -128,6 +154,14 @@ async def test_service_mesh_relation(ops_test: OpsTest, service_mesh_tester):
     assert_request_returns_http_code(
         ops_test.model.name, "sender2/0", "http://receiver1:8080/foo", code=403
     )
+
+    # Assert that when hardened is is set back to False the the authorization policies are removed
+    await ops_test.model.applications[APP_NAME].set_config({"hardened": "false"})
+    await ops_test.model.wait_for_idle([APP_NAME], status="active", timeout=1000)
+    policies = list(
+        client.list(RESOURCE_TYPES["AuthorizationPolicy"], namespace=ops_test.model.name)
+    )
+    assert len(policies) == 0
 
 
 @retry(

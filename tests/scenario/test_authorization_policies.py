@@ -72,7 +72,9 @@ def test_build_authorization_policies(
     with istio_beacon_context(
         istio_beacon_context.on.update_status(),
         state=scenario.State(
-            relations=[service_mesh_relation], model=scenario.Model(name=model_name)
+            relations=[service_mesh_relation],
+            model=scenario.Model(name=model_name),
+            config={"hardened": True},
         ),
     ) as manager:
         charm: istio_beacon_charm = manager.charm
@@ -85,3 +87,38 @@ def test_build_authorization_policies(
             "/path2"
         ]
         assert authorization_policies[1]["spec"]["targetRefs"][0]["name"] == "target-app2"
+
+
+@pytest.mark.disable_lightkube_client_autouse
+@pytest.mark.parametrize(
+    "hardened, authorization_policies_generated",
+    [
+        (True, True),
+        (False, False),
+    ],
+)
+def test_build_authorization_policies_with_hardened(
+    hardened,
+    authorization_policies_generated,
+    istio_beacon_charm,
+    istio_beacon_context,
+    service_mesh_relation,
+):
+    model_name = "my-model"
+    with istio_beacon_context(
+        istio_beacon_context.on.update_status(),
+        state=scenario.State(
+            relations=[service_mesh_relation],
+            model=scenario.Model(name=model_name),
+            config={"hardened": hardened},
+        ),
+    ) as manager:
+        charm: istio_beacon_charm = manager.charm
+        authorization_policies = charm._build_authorization_policies(charm._mesh.mesh_info())
+
+        if authorization_policies_generated:
+            # Assert that we have at least one authorization policy that was requested to be created by the
+            # resource manager
+            assert len(authorization_policies) != 0
+        else:
+            assert authorization_policies == []

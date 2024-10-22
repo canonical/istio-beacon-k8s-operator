@@ -70,6 +70,12 @@ config:
       description: >
         Add this charm's model to the service mesh. 
         All charms in this model will automatically be added to the mesh.
+    hardened:
+      type: boolean
+      default: false
+      description: >
+        If True, the charm will create AuthorizationPolicies for all applications that request them on the service-mesh
+        relation.  Otherwise, no AuthorizationPolicies will be created.
 
 resources:
   metrics-proxy-image:
