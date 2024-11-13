@@ -7,6 +7,7 @@
 from enum import Enum
 from typing import Dict, List, Optional
 
+from charms.istio_beacon_k8s.v0.service_mesh import Method
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -94,8 +95,8 @@ class Operation(BaseModel):
     hosts: Optional[List[str]] = None
     notHosts: Optional[List[str]] = None
     ports: Optional[List[str]] = None
-    methods: Optional[List[str]] = None
-    notMethods: Optional[List[str]] = None
+    methods: Optional[List[Method]] = None
+    notMethods: Optional[List[Method]] = None
     paths: Optional[List[str]] = None
     notPaths: Optional[List[str]] = None
 
