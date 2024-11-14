@@ -1,6 +1,7 @@
 # Copyright 2024 Canonical Ltd.
 # See LICENSE file for licensing details.
 import json
+from unittest.mock import patch
 
 import pytest
 import scenario
@@ -85,3 +86,41 @@ def test_build_authorization_policies(
             "/path2"
         ]
         assert authorization_policies[1]["spec"]["targetRefs"][0]["name"] == "target-app2"
+
+
+@pytest.mark.parametrize("create_authorization_policies", [True, False])
+@patch("charm.IstioBeaconCharm._setup_proxy_pebble_service")
+@patch("charm.IstioBeaconCharm._is_waypoint_deployment_ready", return_value=True)
+@patch("charm.IstioBeaconCharm._get_waypoint_resource_manager")
+@patch("charm.IstioBeaconCharm._get_authorization_policy_resource_manager")
+def test_charm_creates_authorization_policies_on_relation_changed(
+    mock_get_authorization_policy_resource_manager,
+    _mock_get_waypoint_resource_manager,
+    _mock_is_waypoint_deployment_ready,
+    _mock_setup_proxy_pebble_service,
+    create_authorization_policies,
+    istio_beacon_charm,
+    istio_beacon_context,
+    service_mesh_relation,
+    mock_lightkube_client,
+):
+    """Test that the charm config create_authorization_policies controls whether AuthorizationPolicies are created."""
+    istio_beacon_context.run(
+        istio_beacon_context.on.config_changed(),
+        state=scenario.State(
+            relations=[service_mesh_relation],
+            leader=True,
+            config={"manage-authorization-policies": create_authorization_policies},
+        ),
+    )
+
+    # Assert that we have/haven't created the AuthorizationPolicies as expected
+    reconciler = mock_get_authorization_policy_resource_manager.return_value.reconcile
+    reconciler.assert_called_once()
+    # reconciler accepts a list of AuthorizationPolicies as the first positional argument.
+    if create_authorization_policies:
+        # Assert that we have passed more than 0 AuthorizationPolicies in that list
+        assert len(reconciler.call_args.args[0]) > 0
+    else:
+        # Assert that we have passed exactly 0 AuthorizationPolicies in that list
+        assert len(reconciler.call_args.args[0]) == 0

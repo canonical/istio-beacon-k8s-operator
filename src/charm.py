@@ -308,9 +308,17 @@ class IstioBeaconCharm(ops.CharmBase):
     def _sync_authorization_policies(self):
         """Sync authorization policies."""
         krm = self._get_authorization_policy_resource_manager()
-        authorization_policies = self._build_authorization_policies(self._mesh.mesh_info())
-        logger.debug("Reconciling state of AuthorizationPolicies to:")
-        logger.debug(authorization_policies)
+        if self.config["manage-authorization-policies"]:
+            authorization_policies = self._build_authorization_policies(self._mesh.mesh_info())
+            logger.debug("Reconciling state of AuthorizationPolicies to:")
+            logger.debug(authorization_policies)
+        else:
+            # We reconcile to an empty list rather than skip reconciling entirely so that, if the user changes the
+            # config while the charm is running, we remove all AuthorizationPolicies.
+            logger.debug(
+                "AuthorizationPolicies creation is disabled - reconciling to no Authorization Policies."
+            )
+            authorization_policies = []
         krm.reconcile(authorization_policies)  # type: ignore
 
     def _sync_waypoint_resources(self):

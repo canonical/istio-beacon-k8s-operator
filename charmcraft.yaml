@@ -56,6 +56,19 @@ parts:
 
 config:
   options:
+    manage-authorization-policies:
+      type: boolean
+      default: true
+      description: >
+        Automatically create Istio authorization policies for any charm requiresting them over the service mesh 
+        relation.  If set to false, the charm will not create any authorization policies, but will still do other 
+        functions like provide a waypoint.
+    model-on-mesh:
+      type: boolean
+      default: false
+      description: >
+        Add this charm's model to the service mesh. 
+        All charms in this model will automatically be added to the mesh.
     ready-timeout:
       type: int
       default: 100
@@ -64,12 +77,6 @@ config:
         ready. This applies specifically to the deployment created for the Istio 
         waypoint controller. If the deployment does not become ready within this time, 
         charm will go into error state.
-    model-on-mesh:
-      type: boolean
-      default: false
-      description: >
-        Add this charm's model to the service mesh. 
-        All charms in this model will automatically be added to the mesh.
 
 resources:
   metrics-proxy-image:
