@@ -251,7 +251,7 @@ def test_sync_waypoint_resources_remove_labels(harness: Harness[IstioBeaconCharm
             ),
             # Note: if this test fails because the hash has changed, that means upgrading from a previous version to
             # this one will result in a delete/recreate of all policies.  Decide if that is acceptable.
-            "istio-beacon-k8s-beaconNamespace-policy-senderApp-senderNamespace-targetApp-65994572",
+            "beaconApp-beaconNamespace-policy-senderApp-senderNamespace-targetApp-65994572",
         ),
         # case with target service, multiple endpoints
         (
@@ -270,7 +270,7 @@ def test_sync_waypoint_resources_remove_labels(harness: Harness[IstioBeaconCharm
             ),
             # Note: if this test fails because the hash has changed, that means upgrading from a previous version to
             # this one will result in a delete/recreate of all policies.  Decide if that is acceptable.
-            "istio-beacon-k8s-beaconNamespace-policy-senderApp-senderNamespace-targetApp-434ce4ee",
+            "beaconApp-beaconNamespace-policy-senderApp-senderNamespace-targetApp-434ce4ee",
         ),
         # case with truncation
         (
@@ -289,7 +289,7 @@ def test_sync_waypoint_resources_remove_labels(harness: Harness[IstioBeaconCharm
             ),
             # Note: if this test fails because the hash has changed, that means upgrading from a previous version to
             # this one will result in a delete/recreate of all policies.  Decide if that is acceptable.
-            "istio-beacon-k8s-beaconNamespace678901234567890123456789012345678901234567890123-policy-senderApp012345678901234567890-senderNamespace678901234567890-targetApp012345678901234567890-506b5a7c",
+            "beaconApp012345678901234567890123456789012345678901234567890123-beaconNamespace678901234567890123456789012345678901234567890123-policy-senderApp012345678901234567890-senderNamespace678901234567890-targetApp012345678901234567890-506b5a7c",
         ),
     ],
 )
@@ -297,10 +297,10 @@ def test_generate_authorization_policy_name(
     beacon_name, beacon_namespace, mesh_policy, expected_name, harness: Harness[IstioBeaconCharm]
 ):
     """Test the _generate_authorization_policy_name() method."""
-    # TODO: how do we set app name in harness?  For now, just use the default
     harness.set_model_name(beacon_namespace)
     harness.begin()
     charm = harness.charm
+    charm.model.app.name = beacon_name
 
     name = charm._generate_authorization_policy_name(mesh_policy)
     assert name == expected_name
