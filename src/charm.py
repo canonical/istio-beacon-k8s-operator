@@ -414,7 +414,7 @@ class IstioBeaconCharm(ops.CharmBase):
         """Generate a unique name for an AuthorizationPolicy, suffixing a hash of the MeshPolicy to avoid collisions.
 
         The name has the following general format:
-            {app_name}-{model_name}-policy-{source_app_name}-{target_app_name}-{hash}
+            {app_name}-{model_name}-policy-{source_app_name}-{source_namespace}-{target_app_name}-{hash}
         but source_app_name and target_app_name will be truncated if the total name exceeds Kubernetes's limit of 253
         characters.
         """
