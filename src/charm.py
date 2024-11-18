@@ -5,12 +5,14 @@
 
 """Istio Beacon Charm."""
 
+import hashlib
 import logging
 import time
-from typing import Dict
+from typing import Dict, List
 
 import ops
-from charms.istio_beacon_k8s.v0.service_mesh import ServiceMeshProvider
+import pydantic
+from charms.istio_beacon_k8s.v0.service_mesh import MeshPolicy, ServiceMeshProvider
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from lightkube.core.client import Client
 from lightkube.core.exceptions import ApiError
@@ -65,7 +67,7 @@ class IstioBeaconCharm(ops.CharmBase):
 
         self._lightkube_field_manager: str = self.app.name
         self._lightkube_client = None
-        self._managed_labels = f"{self.app.name}-{self.model.name}"
+        self._app_identity = f"{self.app.name}-{self.model.name}"
 
         self._telemetry_labels = {
             f"charms.canonical.com/{self.model.name}.{self.app.name}.telemetry": "aggregated"
@@ -217,7 +219,7 @@ class IstioBeaconCharm(ops.CharmBase):
 
         self.unit.status = ActiveStatus()
 
-    def _build_authorization_policies(self, mesh_info):
+    def _build_authorization_policies(self, mesh_info: List[MeshPolicy]):
         """Build authorization policies for all related applications."""
         authorization_policies = [None] * len(mesh_info)
         for i, policy in enumerate(mesh_info):
@@ -230,9 +232,8 @@ class IstioBeaconCharm(ops.CharmBase):
 
             authorization_policies[i] = RESOURCE_TYPES["AuthorizationPolicy"](  # type: ignore
                 metadata=ObjectMeta(
-                    # TODO: Improve how we name these policies.  See
-                    #  https://github.com/canonical/istio-beacon-k8s-operator/issues/22 for more details.
-                    name=f"{self._managed_labels}-policy-{policy.source_app_name}-{policy.target_app_name}.{i}",
+                    name=self._generate_authorization_policy_name(policy),
+                    # FIXME: This should be the namespace of the target app, not the beacon
                     namespace=self.model.name,
                 ),
                 spec=AuthorizationPolicySpec(
@@ -260,7 +261,9 @@ class IstioBeaconCharm(ops.CharmBase):
                                 To(
                                     operation=Operation(
                                         # TODO: Make these ports strings instead of ints in endpoint?
-                                        ports=[str(p) for p in endpoint.ports],
+                                        ports=[str(p) for p in endpoint.ports]
+                                        if endpoint.ports
+                                        else [],
                                         hosts=endpoint.hosts,
                                         methods=endpoint.methods,
                                         paths=endpoint.paths,
@@ -357,7 +360,7 @@ class IstioBeaconCharm(ops.CharmBase):
             or existing_labels.get("istio.io/dataplane-mode")
         ) and existing_labels.get(
             "charms.canonical.com/istio.io.waypoint.managed-by"
-        ) != f"{self._managed_labels}":
+        ) != f"{self._app_identity}":
             logger.error(
                 f"Cannot add labels: Namespace '{self.model.name}' is already configured with Istio labels managed by another entity."
             )
@@ -366,7 +369,7 @@ class IstioBeaconCharm(ops.CharmBase):
         labels_to_add = {
             "istio.io/use-waypoint": self._waypoint_name,
             "istio.io/dataplane-mode": "ambient",
-            "charms.canonical.com/istio.io.waypoint.managed-by": f"{self._managed_labels}",
+            "charms.canonical.com/istio.io.waypoint.managed-by": f"{self._app_identity}",
         }
 
         namespace.metadata.labels.update(labels_to_add)  # pyright: ignore
@@ -381,7 +384,7 @@ class IstioBeaconCharm(ops.CharmBase):
         if namespace.metadata and namespace.metadata.labels:
             if (
                 namespace.metadata.labels.get("charms.canonical.com/istio.io.waypoint.managed-by")
-                != f"{self._managed_labels}"
+                != f"{self._app_identity}"
             ):
                 logger.warning(
                     f"Cannot remove labels: Namespace '{self.model.name}' has Istio labels managed by another entity."
@@ -406,6 +409,45 @@ class IstioBeaconCharm(ops.CharmBase):
             "istio.io/use-waypoint": self._waypoint_name,
             "istio.io/use-waypoint-namespace": self.model.name,
         }
+
+    def _generate_authorization_policy_name(self, mesh_policy: MeshPolicy) -> str:
+        """Generate a unique name for an AuthorizationPolicy, suffixing a hash of the MeshPolicy to avoid collisions.
+
+        The name has the following general format:
+            {app_name}-{model_name}-policy-{source_app_name}-{source_namespace}-{target_app_name}-{hash}
+        but source_app_name and target_app_name will be truncated if the total name exceeds Kubernetes's limit of 253
+        characters.
+        """
+        # omit target_app_namespace from the name here because that will be the namespace the policy is generated in, so
+        # adding it here is redundant
+        name = "-".join(
+            [
+                self.app.name,
+                self.model.name,
+                "policy",
+                mesh_policy.source_app_name,
+                mesh_policy.source_namespace,
+                mesh_policy.target_app_name,
+                _hash_pydantic_model(mesh_policy)[:8],
+            ]
+        )
+        if len(name) > 253:
+            # Truncate the name to fit within Kubernetes's 253-character limit
+            # juju app names and models must be <= 63 characters each and we have ~20 characters of static text, so
+            # if name is too long just take the first 30 characters of source_app_name, source_namespace, and
+            # target_app_name to be safe.
+            name = "-".join(
+                [
+                    self.app.name,
+                    self.model.name,
+                    "policy",
+                    mesh_policy.source_app_name[:30],
+                    mesh_policy.source_namespace[:30],
+                    mesh_policy.target_app_name[:30],
+                    _hash_pydantic_model(mesh_policy)[:8],
+                ]
+            )
+        return name
 
     @staticmethod
     def format_labels(label_dict: Dict[str, str]) -> str:
@@ -434,6 +476,21 @@ def _get_peer_identity_for_service_account(service_account, namespace):
         "cluster.local/ns/{namespace}/sa/{service_account}"
     """
     return f"cluster.local/ns/{namespace}/sa/{service_account}"
+
+
+def _hash_pydantic_model(model: pydantic.BaseModel) -> str:
+    """Hash a pydantic BaseModel object.
+
+    This is a simple hashing of the json model dump of the pydantic model.  Items that are excluded from this dump will
+    will not affect the output.
+    """
+
+    def _stable_hash(data):
+        return hashlib.sha256(str(data).encode()).hexdigest()
+
+    # Note: This hash will be affected by changes in how pydandic stringifies data, so if they change things our hash
+    # will change too.  If that proves an issue, we could implement something more controlled here.
+    return _stable_hash(model)
 
 
 if __name__ == "__main__":
