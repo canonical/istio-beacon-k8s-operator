@@ -6,3 +6,6 @@ pydantic>=2
 # Deps: charm
 lightkube-extensions @ git+https://github.com/canonical/lightkube-extensions.git@main
 cosl
+
+# required by charm-tracing
+opentelemetry-exporter-otlp-proto-http==1.21.0

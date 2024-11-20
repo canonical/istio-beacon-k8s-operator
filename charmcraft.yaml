@@ -37,6 +37,13 @@ containers:
   metrics-proxy:
     resource: metrics-proxy-image
 
+requires:
+  charm-tracing:
+    interface: tracing
+    description: |
+      Endpoint for integrating over a `tracing` interface and sending charm traces 
+      to a distributed tracing backend such as Tempo.
+
 provides:
   service-mesh:
     interface: service_mesh
