@@ -87,7 +87,10 @@ class IstioBeaconCharm(ops.CharmBase):
         self._tracing = TracingEndpointRequirer(
             self, protocols=["otlp_http"], relation_name="charm-tracing"
         )
-        self._charm_tracing_endpoint = self._tracing.get_endpoint("otlp_http")
+
+        self._charm_tracing_endpoint = (
+            self._tracing.get_endpoint("otlp_http") if self._tracing.relations else None
+        )
 
         self._waypoint_name = f"{self.app.name}-{self.model.name}-waypoint"
 
