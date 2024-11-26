@@ -85,9 +85,10 @@ def test_add_labels(harness: Harness[IstioBeaconCharm], labels_before, patched, 
         )
     )
 
-    with patch.object(
-        charm.lightkube_client, "get", return_value=mock_namespace
-    ) as mock_get, patch.object(charm.lightkube_client, "patch") as mock_patch:
+    with (
+        patch.object(charm.lightkube_client, "get", return_value=mock_namespace) as mock_get,
+        patch.object(charm.lightkube_client, "patch") as mock_patch,
+    ):
         charm._add_labels()
         mock_get.assert_called_once_with(Namespace, "istio-system")
         if patched:
@@ -165,9 +166,10 @@ def test_remove_labels(harness: Harness[IstioBeaconCharm], labels_before, patche
         )
     )
 
-    with patch.object(
-        charm.lightkube_client, "get", return_value=mock_namespace
-    ) as mock_get, patch.object(charm.lightkube_client, "patch") as mock_patch:
+    with (
+        patch.object(charm.lightkube_client, "get", return_value=mock_namespace) as mock_get,
+        patch.object(charm.lightkube_client, "patch") as mock_patch,
+    ):
         charm._remove_labels()
         mock_get.assert_called_once_with(Namespace, "istio-system")
         if patched:
@@ -184,11 +186,12 @@ def test_sync_waypoint_resources_add_labels(harness: Harness[IstioBeaconCharm]):
     harness.update_config({"model-on-mesh": True})
     charm = harness.charm
 
-    with patch.object(charm, "_get_waypoint_resource_manager") as mock_krm, patch.object(
-        charm, "_construct_waypoint"
-    ) as mock_construct_waypoint, patch.object(
-        charm, "_add_labels"
-    ) as mock_add_labels, patch.object(charm, "_remove_labels") as mock_remove_labels:
+    with (
+        patch.object(charm, "_get_waypoint_resource_manager") as mock_krm,
+        patch.object(charm, "_construct_waypoint") as mock_construct_waypoint,
+        patch.object(charm, "_add_labels") as mock_add_labels,
+        patch.object(charm, "_remove_labels") as mock_remove_labels,
+    ):
         mock_krm.return_value.reconcile = MagicMock()
         mock_construct_waypoint.return_value = MagicMock()
 
@@ -211,11 +214,12 @@ def test_sync_waypoint_resources_remove_labels(harness: Harness[IstioBeaconCharm
     harness.update_config({"model-on-mesh": False})
     charm = harness.charm
 
-    with patch.object(charm, "_get_waypoint_resource_manager") as mock_krm, patch.object(
-        charm, "_construct_waypoint"
-    ) as mock_construct_waypoint, patch.object(
-        charm, "_add_labels"
-    ) as mock_add_labels, patch.object(charm, "_remove_labels") as mock_remove_labels:
+    with (
+        patch.object(charm, "_get_waypoint_resource_manager") as mock_krm,
+        patch.object(charm, "_construct_waypoint") as mock_construct_waypoint,
+        patch.object(charm, "_add_labels") as mock_add_labels,
+        patch.object(charm, "_remove_labels") as mock_remove_labels,
+    ):
         mock_krm.return_value.reconcile = MagicMock()
         mock_construct_waypoint.return_value = MagicMock()
 
