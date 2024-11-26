@@ -64,6 +64,7 @@ WAYPOINT_RESOURCE_TYPES = {RESOURCE_TYPES["Gateway"]}
 @trace_charm(
     tracing_endpoint="_charm_tracing_endpoint",
     # we don't add a cert because istio does TLS his way
+    # TODO: fix this when https://github.com/canonical/istio-beacon-k8s-operator/issues/33 is closed
     extra_types=[ServiceMeshProvider, MetricsEndpointProvider],
 )
 class IstioBeaconCharm(ops.CharmBase):
