@@ -14,6 +14,8 @@ import ops
 import pydantic
 from charms.istio_beacon_k8s.v0.service_mesh import MeshPolicy, ServiceMeshProvider
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
+from charms.tempo_coordinator_k8s.v0.charm_tracing import trace_charm
+from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer
 from lightkube.core.client import Client
 from lightkube.core.exceptions import ApiError
 from lightkube.generic_resource import create_namespaced_resource
@@ -59,6 +61,12 @@ WAYPOINT_LABEL = "istio-waypoint"
 WAYPOINT_RESOURCE_TYPES = {RESOURCE_TYPES["Gateway"]}
 
 
+@trace_charm(
+    tracing_endpoint="_charm_tracing_endpoint",
+    # we don't add a cert because istio does TLS his way
+    # TODO: fix this when https://github.com/canonical/istio-beacon-k8s-operator/issues/33 is closed
+    extra_types=[ServiceMeshProvider, MetricsEndpointProvider],
+)
 class IstioBeaconCharm(ops.CharmBase):
     """Charm the service."""
 
@@ -76,6 +84,13 @@ class IstioBeaconCharm(ops.CharmBase):
         self._scraping = MetricsEndpointProvider(
             self,
             jobs=[{"static_configs": [{"targets": ["*:15090"]}]}],
+        )
+        self._tracing = TracingEndpointRequirer(
+            self, protocols=["otlp_http"], relation_name="charm-tracing"
+        )
+
+        self._charm_tracing_endpoint = (
+            self._tracing.get_endpoint("otlp_http") if self._tracing.relations else None
         )
 
         self._waypoint_name = f"{self.app.name}-{self.model.name}-waypoint"
