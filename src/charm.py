@@ -39,6 +39,7 @@ from models import (
     Rule,
     Source,
     To,
+    WorkloadSelector,
 )
 
 logger = logging.getLogger(__name__)
@@ -293,6 +294,24 @@ class IstioBeaconCharm(ops.CharmBase):
                     # exclude_none=True because null values in this data always mean the Kubernetes default
                 ).model_dump(by_alias=True, exclude_unset=True, exclude_none=True),
             )
+
+        # We need to allow the juju controller to be able to talk to the model operator
+        if self.config["model-on-mesh"]:
+            authorization_policies.append(
+                    RESOURCE_TYPES["AuthorizationPolicy"](  # type: ignore
+                    metadata=ObjectMeta(
+                        name=f"allow-traffic-to-{self.model.name}-modeloperator",
+                        namespace=self.model.name,
+                    ),
+                    spec=AuthorizationPolicySpec(
+                        selector=WorkloadSelector(
+                            matchLabels={"operator.juju.is/name": "modeloperator"}
+                        ),
+                        rules=[Rule()],
+                    ).model_dump(by_alias=True, exclude_unset=True, exclude_none=True),
+                )
+            )
+
         return authorization_policies
 
     def _construct_waypoint(self):
