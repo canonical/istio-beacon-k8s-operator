@@ -298,7 +298,7 @@ class IstioBeaconCharm(ops.CharmBase):
         # We need to allow the juju controller to be able to talk to the model operator
         if self.config["model-on-mesh"]:
             authorization_policies.append(
-                    RESOURCE_TYPES["AuthorizationPolicy"](  # type: ignore
+                RESOURCE_TYPES["AuthorizationPolicy"](  # type: ignore
                     metadata=ObjectMeta(
                         name=f"allow-traffic-to-{self.model.name}-modeloperator",
                         namespace=self.model.name,
