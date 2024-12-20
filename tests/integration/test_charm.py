@@ -9,10 +9,11 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Optional
 
+import httpx
 import pytest
 import sh
 import yaml
-from helpers import validate_labels
+from helpers import validate_labels, validate_policy_exists
 from pytest_operator.plugin import OpsTest
 from tenacity import (
     retry,
@@ -70,12 +71,15 @@ async def test_mesh_config(ops_test: OpsTest):
         [APP_NAME], status="active", timeout=1000, raise_on_error=False
     )
     await validate_labels(ops_test, APP_NAME, should_be_present=True)
+    validate_policy_exists(ops_test, f"allow-traffic-to-{ops_test.model.name}-modeloperator")
 
     await ops_test.model.applications[APP_NAME].set_config({"model-on-mesh": "false"})
     await ops_test.model.wait_for_idle(
         [APP_NAME], status="active", timeout=1000, raise_on_error=False
     )
     await validate_labels(ops_test, APP_NAME, should_be_present=False)
+    with pytest.raises(httpx.HTTPStatusError):
+        validate_policy_exists(ops_test, f"allow-traffic-to-{ops_test.model.name}-modeloperator")
 
 
 @pytest.mark.abort_on_fail
