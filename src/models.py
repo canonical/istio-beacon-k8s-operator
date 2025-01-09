@@ -70,7 +70,7 @@ class PolicyTargetReference(BaseModel):
 
 
 class WorkloadSelector(BaseModel):
-    """WorkloadSelector defines the selector for the policy."""
+    """WorkloadSelector defines the target of the policy for ztunnel bound policies."""
 
     matchLabels: Dict[str, str]
 
