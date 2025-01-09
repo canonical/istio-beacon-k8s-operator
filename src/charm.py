@@ -236,7 +236,7 @@ class IstioBeaconCharm(ops.CharmBase):
         self.unit.status = ActiveStatus()
 
     def _build_authorization_policies(self, mesh_info: List[MeshPolicy]):
-        """Build authorization policies for all related applications."""
+        """Build all managed authorization policies."""
         authorization_policies = [None] * len(mesh_info)
         for i, policy in enumerate(mesh_info):
             target_service = policy.target_service or policy.target_app_name
