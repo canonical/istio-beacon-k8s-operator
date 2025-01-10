@@ -136,9 +136,7 @@ class AuthorizationPolicySpec(BaseModel):
 
     @model_validator(mode="after")
     def validate_target(self):
-        """Validate that exactly one of targetRefs and selector is defined."""
-        if (self.targetRefs is None and self.selector is None) or (
-            self.targetRefs is not None and self.selector is not None
-        ):
-            raise ValueError("Only one of targetRefs and selector can be set")
+        """Validate that at most one of targetRefs and selector is defined."""
+        if self.targetRefs is not None and self.selector is not None:
+            raise ValueError("At most one of targetRefs and selector can be set")
         return self
