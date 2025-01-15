@@ -3,9 +3,7 @@
 # See LICENSE file for licensing details.
 import logging
 
-import ops
 from charms.istio_beacon_k8s.v0.service_mesh import Endpoint, Policy, ServiceMeshConsumer
-from ops import BlockedStatus
 from ops.charm import CharmBase
 from ops.main import main
 from ops.model import ActiveStatus
