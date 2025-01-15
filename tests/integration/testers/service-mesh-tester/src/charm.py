@@ -20,25 +20,22 @@ class ServiceMeshTester(CharmBase):
         self._ports = [8080, 8081]
         self.unit.set_ports(*self._ports)
 
-        try:
-            self._mesh = ServiceMeshConsumer(
-                self,
-                policies=[
-                    Policy(
-                        relation="inbound",
-                        endpoints=[
-                            Endpoint(
-                                ports=self._ports,
-                                methods=["GET", "POST"],
-                                paths=["/foo", "/bar/"],
-                            ),
-                        ],
-                    ),
-                ],
-                auto_join=False,
-            )
-        except ops.TooManyRelatedAppsError as e:
-            self.unit.status = BlockedStatus(e)
+        self._mesh = ServiceMeshConsumer(
+            self,
+            policies=[
+                Policy(
+                    relation="inbound",
+                    endpoints=[
+                        Endpoint(
+                            ports=self._ports,
+                            methods=["GET", "POST"],
+                            paths=["/foo", "/bar/"],
+                        ),
+                    ],
+                ),
+            ],
+            auto_join=False,
+        )
 
         self.framework.observe(self.on.echo_server_pebble_ready, self.on_pebble_ready)
 
