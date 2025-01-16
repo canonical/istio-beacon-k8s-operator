@@ -300,7 +300,7 @@ class IstioBeaconCharm(ops.CharmBase):
             authorization_policies.append(
                 RESOURCE_TYPES["AuthorizationPolicy"](  # type: ignore
                     metadata=ObjectMeta(
-                        name=f"allow-traffic-to-{self.model.name}-modeloperator",
+                        name=f"{self.app.name}-{self.model.name}-policy-all-sources-modeloperator",
                         namespace=self.model.name,
                     ),
                     spec=AuthorizationPolicySpec(
