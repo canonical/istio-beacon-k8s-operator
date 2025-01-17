@@ -79,7 +79,7 @@ async def test_mesh_config(ops_test: OpsTest):
     )
     await validate_labels(ops_test, APP_NAME, should_be_present=False)
     with pytest.raises(httpx.HTTPStatusError):
-        validate_policy_exists(ops_test, f"allow-traffic-to-{ops_test.model.name}-modeloperator")
+        validate_policy_exists(ops_test, f"{APP_NAME}-{ops_test.model.name}-policy-all-sources-modeloperator")
 
 
 @pytest.mark.abort_on_fail
