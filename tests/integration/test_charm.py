@@ -138,6 +138,24 @@ async def test_service_mesh_relation(ops_test: OpsTest, service_mesh_tester):
     )
 
 
+@pytest.mark.abort_on_fail
+async def test_modeloperator_rule(ops_test: OpsTest, service_mesh_tester):
+    # Ensure model is on mesh
+    await ops_test.model.applications[APP_NAME].set_config({"model-on-mesh": "true"})
+    await ops_test.track_model("off-mesh-model")
+    omm = ops_test.models.get("off-mesh-model")
+    resources = {"echo-server-image": "jmalloc/echo-server:v0.3.7"}
+    await omm.model.deploy(
+        service_mesh_tester, application_name="sender", resources=resources, trust=True
+    )
+    await omm.model.wait_for_idle(status="active")
+    # Return code is 400 because I do not know how to properly format an api call to the modeloperator. But we only
+    # care that the request reached its destination.
+    assert_request_returns_http_code(
+        omm.model.name, "sender/0", f"http://modeloperator.{ops_test.model.name}:17071", code=400
+    )
+
+
 @retry(
     wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_delay(120), reraise=True
 )
