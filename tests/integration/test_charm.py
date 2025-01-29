@@ -142,7 +142,7 @@ async def test_service_mesh_relation(ops_test: OpsTest, service_mesh_tester):
 async def test_modeloperator_rule(ops_test: OpsTest, service_mesh_tester):
     # Ensure model is on mesh
     await ops_test.model.applications[APP_NAME].set_config({"model-on-mesh": "true"})
-    await ops_test.track_model("off-mesh-model")
+    await ops_test.track_model("off-mesh-model", model_name=f"{ops_test.model.name}-off-mesh-model")
     omm = ops_test.models.get("off-mesh-model")
     resources = {"echo-server-image": "jmalloc/echo-server:v0.3.7"}
     await omm.model.deploy(
