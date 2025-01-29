@@ -47,7 +47,7 @@ ISTIO_K8S = CharmDeploymentConfiguration(
 @pytest.mark.abort_on_fail
 async def test_deploy_dependencies(ops_test: OpsTest):
     # Not the model name just an alias
-    await ops_test.track_model("istio-system")
+    await ops_test.track_model("istio-system", model_name=f"{ops_test.model.name}-istio-system")
     istio_system_model = ops_test.models.get("istio-system")
 
     await istio_system_model.model.deploy(**asdict(ISTIO_K8S))
@@ -142,7 +142,9 @@ async def test_service_mesh_relation(ops_test: OpsTest, service_mesh_tester):
 async def test_modeloperator_rule(ops_test: OpsTest, service_mesh_tester):
     # Ensure model is on mesh
     await ops_test.model.applications[APP_NAME].set_config({"model-on-mesh": "true"})
-    await ops_test.track_model("off-mesh-model", model_name=f"{ops_test.model.name}-off-mesh-model")
+    await ops_test.track_model(
+        "off-mesh-model", model_name=f"{ops_test.model.name}-off-mesh-model"
+    )
     omm = ops_test.models.get("off-mesh-model")
     resources = {"echo-server-image": "jmalloc/echo-server:v0.3.7"}
     await omm.model.deploy(
