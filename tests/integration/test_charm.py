@@ -9,10 +9,11 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Optional
 
+import httpx
 import pytest
 import sh
 import yaml
-from helpers import validate_labels
+from helpers import validate_labels, validate_policy_exists
 from pytest_operator.plugin import OpsTest
 from tenacity import (
     retry,
@@ -46,7 +47,7 @@ ISTIO_K8S = CharmDeploymentConfiguration(
 @pytest.mark.abort_on_fail
 async def test_deploy_dependencies(ops_test: OpsTest):
     # Not the model name just an alias
-    await ops_test.track_model("istio-system")
+    await ops_test.track_model("istio-system", model_name=f"{ops_test.model.name}-istio-system")
     istio_system_model = ops_test.models.get("istio-system")
 
     await istio_system_model.model.deploy(**asdict(ISTIO_K8S))
@@ -70,12 +71,19 @@ async def test_mesh_config(ops_test: OpsTest):
         [APP_NAME], status="active", timeout=1000, raise_on_error=False
     )
     await validate_labels(ops_test, APP_NAME, should_be_present=True)
+    validate_policy_exists(
+        ops_test, f"{APP_NAME}-{ops_test.model.name}-policy-all-sources-modeloperator"
+    )
 
     await ops_test.model.applications[APP_NAME].set_config({"model-on-mesh": "false"})
     await ops_test.model.wait_for_idle(
         [APP_NAME], status="active", timeout=1000, raise_on_error=False
     )
     await validate_labels(ops_test, APP_NAME, should_be_present=False)
+    with pytest.raises(httpx.HTTPStatusError):
+        validate_policy_exists(
+            ops_test, f"{APP_NAME}-{ops_test.model.name}-policy-all-sources-modeloperator"
+        )
 
 
 @pytest.mark.abort_on_fail
@@ -127,6 +135,26 @@ async def test_service_mesh_relation(ops_test: OpsTest, service_mesh_tester):
     # other service accounts should get a 403 error
     assert_request_returns_http_code(
         ops_test.model.name, "sender2/0", "http://receiver1:8080/foo", code=403
+    )
+
+
+@pytest.mark.abort_on_fail
+async def test_modeloperator_rule(ops_test: OpsTest, service_mesh_tester):
+    # Ensure model is on mesh
+    await ops_test.model.applications[APP_NAME].set_config({"model-on-mesh": "true"})
+    await ops_test.track_model(
+        "off-mesh-model", model_name=f"{ops_test.model.name}-off-mesh-model"
+    )
+    omm = ops_test.models.get("off-mesh-model")
+    resources = {"echo-server-image": "jmalloc/echo-server:v0.3.7"}
+    await omm.model.deploy(
+        service_mesh_tester, application_name="sender", resources=resources, trust=True
+    )
+    await omm.model.wait_for_idle(status="active")
+    # Return code is 400 because I do not know how to properly format an api call to the modeloperator. But we only
+    # care that the request reached its destination.
+    assert_request_returns_http_code(
+        omm.model.name, "sender/0", f"http://modeloperator.{ops_test.model.name}:17071", code=400
     )
 
 
