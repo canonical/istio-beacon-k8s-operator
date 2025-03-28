@@ -7,9 +7,6 @@ settings:
     
   components:
     - istio-beacon
-
-  labels:
-    - 25.04
       
   add_gh_comment: false
   sync_description: false
