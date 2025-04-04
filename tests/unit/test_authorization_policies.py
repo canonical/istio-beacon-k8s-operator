@@ -26,7 +26,7 @@ def service_mesh_relation():
                             Endpoint(
                                 hosts=["host1"],
                                 ports=[80],
-                                methods=["GET"],
+                                methods=["GET"],  # type: ignore
                                 paths=["/path1"],
                             )
                         ],
@@ -41,7 +41,7 @@ def service_mesh_relation():
                             Endpoint(
                                 hosts=["host2"],
                                 ports=[80],
-                                methods=["GET"],
+                                methods=["GET"],  # type: ignore
                                 paths=["/path2"],
                             )
                         ],
@@ -59,7 +59,7 @@ def test_get_authorization_policies_from_related_apps(
         istio_beacon_context.on.update_status(),
         state=scenario.State(relations=[service_mesh_relation]),
     ) as manager:
-        charm: istio_beacon_charm = manager.charm
+        charm: istio_beacon_charm = manager.charm  # type: ignore
         mesh_info = charm._mesh.mesh_info()
         assert mesh_info[0].endpoints[0].hosts == ["host1"]
         assert mesh_info[1].endpoints[0].paths == ["/path2"]
@@ -76,7 +76,7 @@ def test_build_authorization_policies(
             relations=[service_mesh_relation], model=scenario.Model(name=model_name)
         ),
     ) as manager:
-        charm: istio_beacon_charm = manager.charm
+        charm: istio_beacon_charm = manager.charm  # type: ignore
         authorization_policies = charm._build_authorization_policies(charm._mesh.mesh_info())
 
         # Spot check the outputs
