@@ -44,13 +44,13 @@ WITH_COMPLEX_ENDPOINTS = (
                 Endpoint(
                     hosts=["localhost"],
                     ports=[443, 9000],
-                    methods=["GET", "POST"],
+                    methods=["GET", "POST"],  # type: ignore
                     paths=["/metrics", "/data"],
                 ),
                 Endpoint(
                     hosts=["example.com"],
                     ports=[3000],
-                    methods=["DELETE"],
+                    methods=["DELETE"],  # type: ignore
                     paths=["/foobar"],
                 ),
             ],

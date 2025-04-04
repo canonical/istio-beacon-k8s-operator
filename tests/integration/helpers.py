@@ -15,6 +15,7 @@ AuthPolicy = create_namespaced_resource(
 
 async def validate_labels(ops_test: OpsTest, app_name: str, should_be_present: bool):
     """Validate the presence or absence of specific labels in the namespace."""
+    assert ops_test.model_name
     client = Client()
 
     namespace_name = ops_test.model_name
@@ -27,6 +28,8 @@ async def validate_labels(ops_test: OpsTest, app_name: str, should_be_present: b
     }
 
     for label, expected_value in expected_labels.items():
+        assert namespace.metadata
+        assert namespace.metadata.labels
         actual_value = namespace.metadata.labels.get(label)
         if should_be_present:
             assert actual_value == expected_value, f"Label {label} is missing or incorrect."
@@ -35,5 +38,6 @@ async def validate_labels(ops_test: OpsTest, app_name: str, should_be_present: b
 
 
 def validate_policy_exists(ops_test: OpsTest, policy_name: str):
+    assert ops_test.model
     client = Client()
     client.get(AuthPolicy, policy_name, namespace=ops_test.model.name)

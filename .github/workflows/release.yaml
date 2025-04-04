@@ -1,19 +1,12 @@
-name: Release Charm to Edge and Publish Libraries
+name: Release Charm
 
 on:
-  workflow_dispatch: {}
   push:
     branches:
       - main
+      - track/**
 
-# The following configuration is temporarily pinned to this branch to enable Juju to restart hooks, 
-# which are disabled by default (https://github.com/charmed-kubernetes/actions-operator/blob/5c6377ed695d52b8a1693f07b7d641e245269123/src/bootstrap/index.ts#L205). 
-# Note: This causes integration tests to fail as charms lose connection to the Juju controller 
-# when added to the mesh, regaining connection only upon hook retry.
-# TODO: Revert to main branch after #8 is resolved.
 jobs:
   release:
-    uses: canonical/observability/.github/workflows/charm-release.yaml@istio-test
+    uses: canonical/observability/.github/workflows/charm-release.yaml@v1
     secrets: inherit
-    with:
-      build-for-arm: true

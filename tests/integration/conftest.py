@@ -57,17 +57,11 @@ def timed_memoizer(func):
 @pytest.fixture(scope="module")
 @timed_memoizer
 async def istio_beacon_charm(ops_test: OpsTest):
-    count = 0
-    while True:
-        try:
-            charm = await ops_test.build_charm(".", verbosity="debug")
-            return charm
-        except RuntimeError:
-            logger.warning("Failed to build istio-beacon-k8s. Trying again!")
-            count += 1
+    if charm_file := os.environ.get("CHARM_PATH"):
+        return Path(charm_file)
 
-            if count == 3:
-                raise
+    charm = await ops_test.build_charm(".", verbosity="debug")
+    return charm
 
 
 @pytest.fixture(scope="module")

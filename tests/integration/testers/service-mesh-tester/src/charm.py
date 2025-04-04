@@ -26,7 +26,7 @@ class ServiceMeshTester(CharmBase):
                     endpoints=[
                         Endpoint(
                             ports=self._ports,
-                            methods=["GET", "POST"],
+                            methods=["GET", "POST"],  # type: ignore
                             paths=["/foo", "/bar/"],
                         ),
                     ],
