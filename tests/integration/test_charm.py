@@ -46,9 +46,11 @@ ISTIO_K8S = CharmDeploymentConfiguration(
 
 @pytest.mark.abort_on_fail
 async def test_deploy_dependencies(ops_test: OpsTest):
+    assert ops_test.model
     # Not the model name just an alias
     await ops_test.track_model("istio-system", model_name=f"{ops_test.model.name}-istio-system")
     istio_system_model = ops_test.models.get("istio-system")
+    assert istio_system_model
 
     await istio_system_model.model.deploy(**asdict(ISTIO_K8S))
     await istio_system_model.model.wait_for_idle(
@@ -58,14 +60,18 @@ async def test_deploy_dependencies(ops_test: OpsTest):
 
 @pytest.mark.abort_on_fail
 async def test_deployment(ops_test: OpsTest, istio_beacon_charm):
+    assert ops_test.model
     await ops_test.model.deploy(
         istio_beacon_charm, resources=resources, application_name=APP_NAME, trust=True
     )
-    await ops_test.model.wait_for_idle([APP_NAME], status="active", timeout=1000)
+    await ops_test.model.wait_for_idle(
+        [APP_NAME], status="active", timeout=1000, raise_on_error=False
+    )
 
 
 @pytest.mark.abort_on_fail
 async def test_mesh_config(ops_test: OpsTest):
+    assert ops_test.model
     await ops_test.model.applications[APP_NAME].set_config({"model-on-mesh": "true"})
     await ops_test.model.wait_for_idle(
         [APP_NAME], status="active", timeout=1000, raise_on_error=False
@@ -88,6 +94,7 @@ async def test_mesh_config(ops_test: OpsTest):
 
 @pytest.mark.abort_on_fail
 async def test_service_mesh_relation(ops_test: OpsTest, service_mesh_tester):
+    assert ops_test.model
     # Ensure model is on mesh
     await ops_test.model.applications[APP_NAME].set_config({"model-on-mesh": "true"})
     time.sleep(5)  # Wait for the model to be on mesh
@@ -140,12 +147,14 @@ async def test_service_mesh_relation(ops_test: OpsTest, service_mesh_tester):
 
 @pytest.mark.abort_on_fail
 async def test_modeloperator_rule(ops_test: OpsTest, service_mesh_tester):
+    assert ops_test.model
     # Ensure model is on mesh
     await ops_test.model.applications[APP_NAME].set_config({"model-on-mesh": "true"})
     await ops_test.track_model(
         "off-mesh-model", model_name=f"{ops_test.model.name}-off-mesh-model"
     )
     omm = ops_test.models.get("off-mesh-model")
+    assert omm
     resources = {"echo-server-image": "jmalloc/echo-server:v0.3.7"}
     await omm.model.deploy(
         service_mesh_tester, application_name="sender", resources=resources, trust=True
@@ -170,7 +179,7 @@ def assert_request_returns_http_code(
     """
     logger.info(f"Checking {source_unit} -> {target_url} on {method}")
     try:
-        resp = sh.juju.ssh(
+        resp = sh.juju.ssh(  # pyright: ignore
             "-m",
             model,
             source_unit,
@@ -188,6 +197,6 @@ def assert_request_returns_http_code(
         f"Got {returned_code} for {source_unit} -> {target_url} on {method} - expected {code}"
     )
 
-    assert returned_code == code, (
-        f"Expected {code} but got {returned_code} for {source_unit} -> {target_url} on {method}"
-    )
+    assert (
+        returned_code == code
+    ), f"Expected {code} but got {returned_code} for {source_unit} -> {target_url} on {method}"
