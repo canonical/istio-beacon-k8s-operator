@@ -90,6 +90,7 @@ def test_add_labels(harness: Harness[IstioBeaconCharm], labels_before, patched, 
     ) as mock_get, patch.object(charm.lightkube_client, "patch") as mock_patch:
         charm._add_labels()
         mock_get.assert_called_once_with(Namespace, "istio-system")
+        assert mock_namespace.metadata
         if patched:
             mock_patch.assert_called_once_with(Namespace, "istio-system", mock_namespace)
             assert mock_namespace.metadata.labels == labels_after
@@ -170,6 +171,7 @@ def test_remove_labels(harness: Harness[IstioBeaconCharm], labels_before, patche
     ) as mock_get, patch.object(charm.lightkube_client, "patch") as mock_patch:
         charm._remove_labels()
         mock_get.assert_called_once_with(Namespace, "istio-system")
+        assert mock_namespace.metadata
         if patched:
             mock_patch.assert_called_once_with(Namespace, "istio-system", mock_namespace)
             assert mock_namespace.metadata.labels == labels_after
@@ -246,7 +248,7 @@ def test_sync_waypoint_resources_remove_labels(harness: Harness[IstioBeaconCharm
                 target_namespace="targetNamespace",
                 target_service=None,
                 endpoints=[
-                    Endpoint(hosts=["host1"], ports=[80], methods=["GET"], paths=["/path1"])
+                    Endpoint(hosts=["host1"], ports=[80], methods=["GET"], paths=["/path1"])  # type: ignore
                 ],
             ),
             # Note: if this test fails because the hash has changed, that means upgrading from a previous version to
@@ -264,8 +266,8 @@ def test_sync_waypoint_resources_remove_labels(harness: Harness[IstioBeaconCharm
                 target_namespace="targetNamespace",
                 target_service="my-service",
                 endpoints=[
-                    Endpoint(hosts=["host1"], ports=[80], methods=["GET"], paths=["/path1"]),
-                    Endpoint(hosts=["host2"], ports=[80], methods=["GET"], paths=["/path1"]),
+                    Endpoint(hosts=["host1"], ports=[80], methods=["GET"], paths=["/path1"]),  # type: ignore
+                    Endpoint(hosts=["host2"], ports=[80], methods=["GET"], paths=["/path1"]),  # type: ignore
                 ],
             ),
             # Note: if this test fails because the hash has changed, that means upgrading from a previous version to
@@ -283,8 +285,8 @@ def test_sync_waypoint_resources_remove_labels(harness: Harness[IstioBeaconCharm
                 target_namespace="targetNamespace678901234567890123456789012345678901234567890123",
                 target_service="my-service",
                 endpoints=[
-                    Endpoint(hosts=["host1"], ports=[80], methods=["GET"], paths=["/path1"]),
-                    Endpoint(hosts=["host2"], ports=[80], methods=["GET"], paths=["/path1"]),
+                    Endpoint(hosts=["host1"], ports=[80], methods=["GET"], paths=["/path1"]),  # type: ignore
+                    Endpoint(hosts=["host2"], ports=[80], methods=["GET"], paths=["/path1"]),  # type: ignore
                 ],
             ),
             # Note: if this test fails because the hash has changed, that means upgrading from a previous version to
