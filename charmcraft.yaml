@@ -6,6 +6,7 @@ description: A beacon charm used for joining the Istio service mesh.
 
 assumes:
   - k8s-api
+  - juju >= 3.6
 
 platforms:
   ubuntu@22.04:amd64:
