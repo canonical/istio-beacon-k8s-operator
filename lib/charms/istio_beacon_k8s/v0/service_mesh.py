@@ -371,7 +371,7 @@ def build_mesh_policies(
         target_app_name: str,
         target_namespace: str,
         policies: List[Policy],
-        cmr_application_data: Dict[str, CMRData]
+        cmr_application_data: Optional[Dict[str, CMRData]] = None,
 ) -> List[MeshPolicy]:
     """Generate MeshPolicy that implement the given policies for the currently related applications.
 
@@ -382,6 +382,9 @@ def build_mesh_policies(
         policies: List of Policy objects defining the access rules.
         cmr_application_data: Data for cross-model relations, mapping app names to CMRData.
     """
+    if not cmr_application_data:
+        cmr_application_data = {}
+
     mesh_policies = []
     for policy in policies:
         for relation in relation_mapping[policy.relation]:
