@@ -12,8 +12,15 @@ from typing import Dict, List
 
 import ops
 import pydantic
-from charmed_service_mesh_helpers import charm_kubernetes_label
-from charms.istio_beacon_k8s.v0.service_mesh import MeshPolicy, ServiceMeshProvider
+from charms.istio_beacon_k8s.v0.service_mesh import (
+    Endpoint,
+    MeshPolicy,
+    Policy,
+    ServiceMeshProvider,
+    build_mesh_policies,
+    charm_kubernetes_label,
+    get_data_from_cmr_relation,
+)
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.tempo_coordinator_k8s.v0.charm_tracing import trace_charm
 from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer
@@ -59,6 +66,8 @@ RESOURCE_TYPES = {
 
 AUTHORIZATION_POLICY_LABEL = "istio-authorization-policy"
 AUTHORIZATION_POLICY_RESOURCE_TYPES = {RESOURCE_TYPES["AuthorizationPolicy"]}
+CROSS_MODEL_MESH_RELATION_NAME = "provide-cmr-mesh"
+METRICS_PORT = 15090
 WAYPOINT_LABEL = "istio-waypoint"
 WAYPOINT_RESOURCE_TYPES = {RESOURCE_TYPES["Gateway"]}
 
@@ -86,7 +95,7 @@ class IstioBeaconCharm(ops.CharmBase):
         # Configure Observability
         self._scraping = MetricsEndpointProvider(
             self,
-            jobs=[{"static_configs": [{"targets": ["*:15090"]}]}],
+            jobs=[{"static_configs": [{"targets": [f"*:{METRICS_PORT}"]}]}],
         )
         self._tracing = TracingEndpointRequirer(
             self, protocols=["otlp_http"], relation_name="charm-tracing"
@@ -105,6 +114,28 @@ class IstioBeaconCharm(ops.CharmBase):
             max_length=63
         )
 
+
+        # Set up the service mesh policies that define our generate AuthorizationPolicies.
+        self._service_mesh_policies = [
+            Policy(
+                relation="metrics-endpoint",
+                endpoints=[
+                    Endpoint(
+                        ports=[METRICS_PORT]
+                    )
+                ]
+            ),
+        ]
+
+        # Implement a simplified cross_model_mesh interface.  We need CMR data from things that relate to us, but we
+        # don't need to send CMR data to other charms.
+        # TODO: This feels brittle.  If we ever change the CMR interface, we need to remember to change this too.
+        self._cmr_relations = self.model.relations[CROSS_MODEL_MESH_RELATION_NAME]
+        # If CMR changes, refresh the charm.
+        self.framework.observe(
+            self.on[CROSS_MODEL_MESH_RELATION_NAME].relation_changed,
+            self._on_config_changed,
+        )
 
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.remove, self._on_remove)
@@ -250,10 +281,18 @@ class IstioBeaconCharm(ops.CharmBase):
 
         This includes:
         * MeshPolicies that we provide for other charms via the service mesh relation.
+        * MeshPolicies that we provide for other charms via the service mesh relation.
         """
         mesh_policies = []
         # MeshPolicies that we provide for other charms via the service mesh relation
         mesh_policies.extend(self._mesh.mesh_info())
+
+        # MeshPolicies for applications that need access to this charm
+        cmr_data = get_data_from_cmr_relation(self._cmr_relations)
+
+        mesh_policies.extend(
+            build_mesh_policies(self.model.relations, self.app.name, self.model.name, self._service_mesh_policies, cmr_data)
+        )
         return mesh_policies
 
     def _build_authorization_policies(self, mesh_info: List[MeshPolicy]):
