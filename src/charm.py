@@ -277,7 +277,7 @@ class IstioBeaconCharm(ops.CharmBase):
                                     source=Source(
                                         principals=[
                                             _get_peer_identity_for_juju_application(
-                                                policy.source_app_name, self.model.name
+                                                policy.source_app_name, policy.source_namespace
                                             )
                                         ]
                                     )

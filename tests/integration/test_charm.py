@@ -11,21 +11,15 @@ from typing import Optional
 
 import httpx
 import pytest
-import sh
 import yaml
-from helpers import validate_labels, validate_policy_exists
+from helpers import assert_request_returns_http_code, validate_labels, validate_policy_exists
 from pytest_operator.plugin import OpsTest
-from tenacity import (
-    retry,
-    stop_after_delay,
-    wait_exponential,
-)
 
 logger = logging.getLogger(__name__)
 
 METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
 APP_NAME = METADATA["name"]
-resources = {
+RESOURCES = {
     "metrics-proxy-image": METADATA["resources"]["metrics-proxy-image"]["upstream-source"],
 }
 
@@ -62,7 +56,7 @@ async def test_deploy_dependencies(ops_test: OpsTest):
 async def test_deployment(ops_test: OpsTest, istio_beacon_charm):
     assert ops_test.model
     await ops_test.model.deploy(
-        istio_beacon_charm, resources=resources, application_name=APP_NAME, trust=True
+        istio_beacon_charm, resources=RESOURCES, application_name=APP_NAME, trust=True
     )
     await ops_test.model.wait_for_idle(
         [APP_NAME], status="active", timeout=1000, raise_on_error=False
@@ -166,38 +160,3 @@ async def test_modeloperator_rule(ops_test: OpsTest, service_mesh_tester):
     assert_request_returns_http_code(
         omm.model.name, "sender/0", f"http://modeloperator.{ops_test.model.name}:17071", code=400
     )
-
-
-@retry(
-    wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_delay(120), reraise=True
-)
-def assert_request_returns_http_code(
-    model: str, source_unit: str, target_url: str, method: str = "get", code: int = 200
-):
-    """Get the status code for a request from a source unit to a target URL on a given method.
-
-    Note that if the request fails (ex: python script raises an exception) the exit code will be returned.
-    """
-    logger.info(f"Checking {source_unit} -> {target_url} on {method}")
-    try:
-        resp = sh.juju.ssh(  # pyright: ignore
-            "-m",
-            model,
-            source_unit,
-            f'python3 -c "import requests; resp = requests.{method}(\\"{target_url}\\"); print(resp.status_code)"',
-            _return_cmd=True,
-        )
-        returned_code = int(str(resp).strip())
-    except sh.ErrorReturnCode as e:
-        logger.warning(f"Got exit code {e.exit_code} executing sh.juju.ssh")
-        logger.warning(f"STDOUT: {e.stdout}")
-        logger.warning(f"STDERR: {e.stderr}")
-        returned_code = e.exit_code
-
-    logger.info(
-        f"Got {returned_code} for {source_unit} -> {target_url} on {method} - expected {code}"
-    )
-
-    assert (
-        returned_code == code
-    ), f"Expected {code} but got {returned_code} for {source_unit} -> {target_url} on {method}"
