@@ -12,3 +12,4 @@ jobs:
     secrets: inherit
     with:
       default-track: 2
+      automatically-retry-hooks: true # A fix for #8
