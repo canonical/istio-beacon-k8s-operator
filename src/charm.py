@@ -12,7 +12,14 @@ from typing import Dict, List
 
 import ops
 import pydantic
-from charms.istio_beacon_k8s.v0.service_mesh import MeshPolicy, ServiceMeshProvider
+from charms.istio_beacon_k8s.v0.service_mesh import (
+    Endpoint,
+    MeshPolicy,
+    Policy,
+    ServiceMeshProvider,
+    build_mesh_policies,
+    get_data_from_cmr_relation,
+)
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.tempo_coordinator_k8s.v0.charm_tracing import trace_charm
 from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer
@@ -58,6 +65,8 @@ RESOURCE_TYPES = {
 
 AUTHORIZATION_POLICY_LABEL = "istio-authorization-policy"
 AUTHORIZATION_POLICY_RESOURCE_TYPES = {RESOURCE_TYPES["AuthorizationPolicy"]}
+CROSS_MODEL_MESH_RELATION_NAME = "provide-cmr-mesh"
+METRICS_PORT = 15090
 WAYPOINT_LABEL = "istio-waypoint"
 WAYPOINT_RESOURCE_TYPES = {RESOURCE_TYPES["Gateway"]}
 
@@ -78,13 +87,12 @@ class IstioBeaconCharm(ops.CharmBase):
         self._lightkube_client = None
         self._app_identity = f"{self.app.name}-{self.model.name}"
 
-        self._telemetry_labels = {
-            f"charms.canonical.com/{self.model.name}.{self.app.name}.telemetry": "aggregated"
-        }
+        self._telemetry_labels = generate_telemetry_labels(self.app.name, self.model.name)
+
         # Configure Observability
         self._scraping = MetricsEndpointProvider(
             self,
-            jobs=[{"static_configs": [{"targets": ["*:15090"]}]}],
+            jobs=[{"static_configs": [{"targets": [f"*:{METRICS_PORT}"]}]}],
         )
         self._tracing = TracingEndpointRequirer(
             self, protocols=["otlp_http"], relation_name="charm-tracing"
@@ -95,6 +103,28 @@ class IstioBeaconCharm(ops.CharmBase):
         )
 
         self._waypoint_name = f"{self.app.name}-{self.model.name}-waypoint"
+
+        # Set up the service mesh policies that define our generate AuthorizationPolicies.
+        self._service_mesh_policies = [
+            Policy(
+                relation="metrics-endpoint",
+                endpoints=[
+                    Endpoint(
+                        ports=[METRICS_PORT]
+                    )
+                ]
+            ),
+        ]
+
+        # Implement a simplified cross_model_mesh interface.  We need CMR data from things that relate to us, but we
+        # don't need to send CMR data to other charms.
+        # TODO: This feels brittle.  If we ever change the CMR interface, we need to remember to change this too.
+        self._cmr_relations = self.model.relations[CROSS_MODEL_MESH_RELATION_NAME]
+        # If CMR changes, refresh the charm.
+        self.framework.observe(
+            self.on[CROSS_MODEL_MESH_RELATION_NAME].relation_changed,
+            self._on_config_changed,
+        )
 
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.remove, self._on_remove)
@@ -235,6 +265,25 @@ class IstioBeaconCharm(ops.CharmBase):
 
         self.unit.status = ActiveStatus()
 
+    def _collect_mesh_policies(self) -> List[MeshPolicy]:
+        """Return all the mesh policies that we need to create AuthorizationPolicies for.
+
+        This includes:
+        * MeshPolicies that we provide for other charms via the service mesh relation.
+        * MeshPolicies that we provide for other charms via the service mesh relation.
+        """
+        mesh_policies = []
+        # MeshPolicies that we provide for other charms via the service mesh relation
+        mesh_policies.extend(self._mesh.mesh_info())
+
+        # MeshPolicies for applications that need access to this charm
+        cmr_data = get_data_from_cmr_relation(self._cmr_relations)
+
+        mesh_policies.extend(
+            build_mesh_policies(self.model.relations, self.app.name, self.model.name, self._service_mesh_policies, cmr_data)
+        )
+        return mesh_policies
+
     def _build_authorization_policies(self, mesh_info: List[MeshPolicy]):
         """Build all managed authorization policies."""
         authorization_policies = [None] * len(mesh_info)
@@ -267,7 +316,7 @@ class IstioBeaconCharm(ops.CharmBase):
                                     source=Source(
                                         principals=[
                                             _get_peer_identity_for_juju_application(
-                                                policy.source_app_name, self.model.name
+                                                policy.source_app_name, policy.source_namespace
                                             )
                                         ]
                                     )
@@ -341,9 +390,10 @@ class IstioBeaconCharm(ops.CharmBase):
 
     def _sync_authorization_policies(self):
         """Sync authorization policies."""
-        krm = self._get_authorization_policy_resource_manager()
+        mesh_policies = self._collect_mesh_policies()
+
         if self.config["manage-authorization-policies"]:
-            authorization_policies = self._build_authorization_policies(self._mesh.mesh_info())
+            authorization_policies = self._build_authorization_policies(mesh_policies)
             logger.debug("Reconciling state of AuthorizationPolicies to:")
             logger.debug(authorization_policies)
         else:
@@ -353,6 +403,8 @@ class IstioBeaconCharm(ops.CharmBase):
                 "AuthorizationPolicies creation is disabled - reconciling to no Authorization Policies."
             )
             authorization_policies = []
+
+        krm = self._get_authorization_policy_resource_manager()
         krm.reconcile(authorization_policies)  # type: ignore
 
     def _sync_waypoint_resources(self):
@@ -533,6 +585,35 @@ def _hash_pydantic_model(model: pydantic.BaseModel) -> str:
     # Note: This hash will be affected by changes in how pydandic stringifies data, so if they change things our hash
     # will change too.  If that proves an issue, we could implement something more controlled here.
     return _stable_hash(model)
+
+
+def generate_telemetry_labels(
+    app_name: str, model_name: str
+) -> Dict[str, str]:
+    """Generate telemetry labels for the application, ensuring it is always <=63 characters and usually unique.
+
+    The telemetry labels need to be unique for each application in order to prevent one application from scraping
+    another's metrics (eg: istio-beacon scraping the workloads of istio-ingress).  Ideally, this would be done by
+    including model_name and app_name in the label key or value, but Kubernetes label keys and values have a 63
+    character limit.  This, thus function returns:
+    * a label with a key that includes model_name and app_name, if that key is less than 63 characters
+    * a label with a key that is truncated to 63 characters but includes a hash of the full model_name and app_name, to
+      attempt to ensure uniqueness.
+
+    The hash is included because simply truncating the model or app names may lead to collisions.  Consider if
+    istio-beacon is deployed to two different models of names `really-long-model-name1` and `really-long-model-name2`,
+    they'd truncate to the same key.  To reduce this risk, we also include a hash of the model and app names which very
+    likely differs between two applications.
+    """
+    key = f"charms.canonical.com/{model_name}.{app_name}.telemetry"
+    if len(key) > 63:
+        # Truncate the key to fit within the 63-character limit.  Include a hash of the real model_name.app_name to
+        # avoid collisions with some other truncated key.
+        hash = hashlib.md5(f"{model_name}.{app_name}".encode()).hexdigest()[:10]
+        key = f"charms.canonical.com/{model_name[:10]}.{app_name[:10]}.{hash}.telemetry"
+    return {
+        key: "aggregated",
+    }
 
 
 if __name__ == "__main__":
