@@ -78,9 +78,8 @@ class IstioBeaconCharm(ops.CharmBase):
         self._lightkube_client = None
         self._app_identity = f"{self.app.name}-{self.model.name}"
 
-        self._telemetry_labels = {
-            f"charms.canonical.com/{self.model.name}.{self.app.name}.telemetry": "aggregated"
-        }
+        self._telemetry_labels = generate_telemetry_labels(self.app.name, self.model.name)
+
         # Configure Observability
         self._scraping = MetricsEndpointProvider(
             self,
@@ -533,6 +532,35 @@ def _hash_pydantic_model(model: pydantic.BaseModel) -> str:
     # Note: This hash will be affected by changes in how pydandic stringifies data, so if they change things our hash
     # will change too.  If that proves an issue, we could implement something more controlled here.
     return _stable_hash(model)
+
+
+def generate_telemetry_labels(
+    app_name: str, model_name: str
+) -> Dict[str, str]:
+    """Generate telemetry labels for the application, ensuring it is always <=63 characters and usually unique.
+
+    The telemetry labels need to be unique for each application in order to prevent one application from scraping
+    another's metrics (eg: istio-beacon scraping the workloads of istio-ingress).  Ideally, this would be done by
+    including model_name and app_name in the label key or value, but Kubernetes label keys and values have a 63
+    character limit.  This, thus function returns:
+    * a label with a key that includes model_name and app_name, if that key is less than 63 characters
+    * a label with a key that is truncated to 63 characters but includes a hash of the full model_name and app_name, to
+      attempt to ensure uniqueness.
+
+    The hash is included because simply truncating the model or app names may lead to collisions.  Consider if
+    istio-beacon is deployed to two different models of names `really-long-model-name1` and `really-long-model-name2`,
+    they'd truncate to the same key.  To reduce this risk, we also include a hash of the model and app names which very
+    likely differs between two applications.
+    """
+    key = f"charms.canonical.com/{model_name}.{app_name}.telemetry"
+    if len(key) > 63:
+        # Truncate the key to fit within the 63-character limit.  Include a hash of the real model_name.app_name to
+        # avoid collisions with some other truncated key.
+        hash = hashlib.md5(f"{model_name}.{app_name}".encode()).hexdigest()[:10]
+        key = f"charms.canonical.com/{model_name[:10]}.{app_name[:10]}.{hash}.telemetry"
+    return {
+        key: "aggregated",
+    }
 
 
 if __name__ == "__main__":
