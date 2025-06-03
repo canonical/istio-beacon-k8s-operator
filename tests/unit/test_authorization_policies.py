@@ -7,6 +7,8 @@ import pytest
 import scenario
 from charms.istio_beacon_k8s.v0.service_mesh import Endpoint, MeshPolicy
 
+from charm import METRICS_PORT
+
 
 @pytest.fixture()
 def service_mesh_relation():
@@ -52,7 +54,34 @@ def service_mesh_relation():
     )
 
 
-def test_get_authorization_policies_from_related_apps(
+@pytest.fixture()
+def metrics_endpoint_relation():
+    yield scenario.Relation(
+        "metrics-endpoint",
+        "prometheus_scrape",
+        remote_app_name="metrics-collector",
+        remote_app_data={},
+    )
+
+
+@pytest.fixture()
+def metrics_endpoint_cmr_relation():
+    yield scenario.Relation(
+        "provide-cmr-mesh",
+        "cross_model_mesh",
+        remote_app_name="metrics-collector",
+        remote_app_data={
+            "cmr_data": json.dumps(
+                {
+                    "app_name": "cmr",
+                    "juju_model_name": "remote_model",
+                }
+            )
+        },
+    )
+
+
+def test_collect_mesh_policies_for_policies_from_service_mesh_relations(
     istio_beacon_charm, istio_beacon_context, service_mesh_relation
 ):
     with istio_beacon_context(
@@ -60,32 +89,102 @@ def test_get_authorization_policies_from_related_apps(
         state=scenario.State(relations=[service_mesh_relation]),
     ) as manager:
         charm: istio_beacon_charm = manager.charm  # type: ignore
-        mesh_info = charm._mesh.mesh_info()
-        assert mesh_info[0].endpoints[0].hosts == ["host1"]
-        assert mesh_info[1].endpoints[0].paths == ["/path2"]
+        mesh_policies = charm._collect_mesh_policies()
+        assert mesh_policies[0].endpoints[0].hosts == ["host1"]
+        assert mesh_policies[1].endpoints[0].paths == ["/path2"]
 
 
+def test_collect_mesh_policies_for_policies_from_related_applications(
+    istio_beacon_charm, istio_beacon_context, metrics_endpoint_relation
+):
+    """Assert that we create MeshPolicy objects for apps that want to interact with us, such as a metrics collector."""
+    with istio_beacon_context(
+        istio_beacon_context.on.update_status(),
+        state=scenario.State(relations=[metrics_endpoint_relation]),
+    ) as manager:
+        charm: istio_beacon_charm = manager.charm  # type: ignore
+        mesh_policies = charm._collect_mesh_policies()
+        assert len(mesh_policies) == 1
+        assert mesh_policies[0].source_app_name == metrics_endpoint_relation.remote_app_name
+        assert mesh_policies[0].endpoints[0].ports[0] == METRICS_PORT
+
+
+def test_collect_mesh_policies_for_policies_from_related_cmr_applications(
+    istio_beacon_charm, istio_beacon_context, metrics_endpoint_relation, metrics_endpoint_cmr_relation
+):
+    """Assert that we create MeshPolicy objects for apps that want to interact with us, such as a metrics collector."""
+    with istio_beacon_context(
+        istio_beacon_context.on.update_status(),
+        state=scenario.State(relations=[metrics_endpoint_relation, metrics_endpoint_cmr_relation]),
+    ) as manager:
+        charm: istio_beacon_charm = manager.charm  # type: ignore
+        mesh_policies = charm._collect_mesh_policies()
+        assert len(mesh_policies) == 1
+        assert mesh_policies[0].source_app_name == "cmr"
+        assert mesh_policies[0].endpoints[0].ports[0] == METRICS_PORT
+
+@pytest.mark.parametrize(
+    "mesh_policies,expected",
+    [
+        (
+            (
+                MeshPolicy(
+                    source_app_name="source-app0",
+                    source_namespace="source-namespace0",
+                    target_app_name="target-app0",
+                    target_namespace="target-namespace0",
+                    endpoints=[
+                        Endpoint(
+                            hosts=["host0"],
+                            ports=[80],
+                            methods=["GET"],  # type: ignore
+                            paths=["/path0"],
+                        )
+                    ],
+                ),
+                MeshPolicy(
+                    source_app_name="source-app1",
+                    source_namespace="source-namespace1",
+                    target_app_name="target-app1",
+                    target_namespace="target-namespace1",
+                    target_service="my-service1",
+                    endpoints=[
+                        Endpoint(
+                            hosts=["host1"],
+                            ports=[80],
+                            methods=["GET"],  # type: ignore
+                            paths=["/path1"],
+                        )
+                    ],
+                ),
+            ),
+            "expected",
+        )
+    ]
+)
 @pytest.mark.disable_lightkube_client_autouse
 def test_build_authorization_policies(
-    istio_beacon_charm, istio_beacon_context, service_mesh_relation
+    istio_beacon_charm, istio_beacon_context, mesh_policies, expected
 ):
     model_name = "my-model"
     with istio_beacon_context(
         istio_beacon_context.on.update_status(),
         state=scenario.State(
-            relations=[service_mesh_relation], model=scenario.Model(name=model_name)
+            model=scenario.Model(name=model_name)
         ),
     ) as manager:
         charm: istio_beacon_charm = manager.charm  # type: ignore
-        authorization_policies = charm._build_authorization_policies(charm._mesh.mesh_info())
+        authorization_policies = charm._build_authorization_policies(mesh_policies)
 
         # Spot check the outputs
-        assert authorization_policies[0]["metadata"].namespace == model_name
-        assert authorization_policies[0]["spec"]["targetRefs"][0]["name"] == "my-service1"
-        assert authorization_policies[1]["spec"]["rules"][0]["to"][0]["operation"]["paths"] == [
-            "/path2"
-        ]
-        assert authorization_policies[1]["spec"]["targetRefs"][0]["name"] == "target-app2"
+        for i_mesh_policy, mesh_policy in enumerate(mesh_policies):
+            assert authorization_policies[i_mesh_policy]["metadata"].namespace == model_name
+            assert authorization_policies[i_mesh_policy]["spec"]["targetRefs"][0]["name"] == mesh_policy.target_service or mesh_policy.target_app_name
+            for i_endpoint, endpoint in enumerate(mesh_policy.endpoints):
+                assert authorization_policies[i_mesh_policy]["spec"]["rules"][0]["to"][i_endpoint]["operation"]["hosts"] == endpoint.hosts
+                assert authorization_policies[i_mesh_policy]["spec"]["rules"][0]["to"][i_endpoint]["operation"]["ports"] == [str(p) for p in endpoint.ports]
+                assert authorization_policies[i_mesh_policy]["spec"]["rules"][0]["to"][i_endpoint]["operation"]["methods"] == endpoint.methods
+                assert authorization_policies[i_mesh_policy]["spec"]["rules"][0]["to"][i_endpoint]["operation"]["paths"] == endpoint.paths
 
 
 @pytest.mark.parametrize("create_authorization_policies", [True, False])
