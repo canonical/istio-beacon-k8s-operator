@@ -5,14 +5,18 @@
 
 import logging
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from pathlib import Path
-from typing import Optional
 
 import httpx
 import pytest
 import yaml
-from helpers import assert_request_returns_http_code, validate_labels, validate_policy_exists
+from helpers import (
+    assert_request_returns_http_code,
+    istio_k8s,
+    validate_labels,
+    validate_policy_exists,
+)
 from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
@@ -24,20 +28,6 @@ RESOURCES = {
 }
 
 
-@dataclass
-class CharmDeploymentConfiguration:
-    entity_url: str  # aka charm name or local path to charm
-    application_name: str
-    channel: str
-    trust: bool
-    config: Optional[dict] = None
-
-
-ISTIO_K8S = CharmDeploymentConfiguration(
-    entity_url="istio-k8s", application_name="istio-k8s", channel="latest/edge", trust=True
-)
-
-
 @pytest.mark.abort_on_fail
 async def test_deploy_dependencies(ops_test: OpsTest):
     assert ops_test.model
@@ -46,9 +36,9 @@ async def test_deploy_dependencies(ops_test: OpsTest):
     istio_system_model = ops_test.models.get("istio-system")
     assert istio_system_model
 
-    await istio_system_model.model.deploy(**asdict(ISTIO_K8S))
+    await istio_system_model.model.deploy(**asdict(istio_k8s))
     await istio_system_model.model.wait_for_idle(
-        [ISTIO_K8S.application_name], status="active", timeout=1000
+        [istio_k8s.application_name], status="active", timeout=1000
     )
 
 
