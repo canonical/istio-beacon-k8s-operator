@@ -307,3 +307,25 @@ def test_generate_authorization_policy_name(
     name = charm._generate_authorization_policy_name(mesh_policy)
     assert name == expected_name
     assert len(name) <= 253  # 253 is the max length for a k8s resource name
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    (
+        "some-model",
+        "some-really-long-model-name-that-exceeds-63-characters-1234567890"
+    )
+)
+def test_valid_telemetry_labels(model_name, harness: Harness[IstioBeaconCharm]):
+    """Test that telemetry labels are valid.
+
+    Presently, this only asserts that the keys and values are <=63 characters.
+    """
+    harness.set_model_name(model_name)
+    harness.begin()
+    charm = harness.charm
+
+    # Check that telemetry labels are valid
+    for k, v in charm._telemetry_labels.items():
+        assert len(k) <= 63
+        assert len(v) <= 63
