@@ -5,13 +5,12 @@
 
 """Tests that istio-beacon creates AuthorizationPolicies that enable traffic for charms related cross-model."""
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from pathlib import Path
-from typing import Optional
 
 import pytest
 import yaml
-from helpers import assert_request_returns_http_code
+from helpers import assert_request_returns_http_code, istio_k8s
 from pytest_operator.plugin import ModelState, OpsTest
 
 METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
@@ -21,20 +20,6 @@ RECEIVER = "receiver"
 RESOURCES = {
     "metrics-proxy-image": METADATA["resources"]["metrics-proxy-image"]["upstream-source"],
 }
-
-
-@dataclass
-class CharmDeploymentConfiguration:
-    entity_url: str  # aka charm name or local path to charm
-    application_name: str
-    channel: str
-    trust: bool
-    config: Optional[dict] = None
-
-
-ISTIO_K8S = CharmDeploymentConfiguration(
-    entity_url="istio-k8s", application_name="istio-k8s", channel="latest/edge", trust=True
-)
 
 
 @pytest.fixture(scope="module")
@@ -81,9 +66,9 @@ async def test_deploy_environment(
     Asserts that these come to active, but does not assert that policies are created correctly.
     """
     # Deploy the istio-k8s charm in the istio-system model
-    await istio_system_model.model.deploy(**asdict(ISTIO_K8S))
+    await istio_system_model.model.deploy(**asdict(istio_k8s))
     await istio_system_model.model.wait_for_idle(
-        [ISTIO_K8S.application_name], status="active", timeout=1000
+        [istio_k8s.application_name], status="active", timeout=1000
     )
 
     # Deploy the istio-beacon and sender in the sender models

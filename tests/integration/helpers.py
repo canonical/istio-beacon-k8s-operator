@@ -4,6 +4,8 @@
 # See LICENSE file for licensing details.
 
 import logging
+from dataclasses import dataclass
+from typing import Optional
 
 import sh
 from lightkube.core.client import Client
@@ -17,6 +19,21 @@ from tenacity import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class CharmDeploymentConfiguration:
+    entity_url: str  # aka charm name or local path to charm
+    application_name: str
+    channel: str
+    trust: bool
+    config: Optional[dict] = None
+
+
+istio_k8s = CharmDeploymentConfiguration(
+    entity_url="istio-k8s", application_name="istio-k8s", channel="2/edge", trust=True
+)
+
 
 AuthPolicy = create_namespaced_resource(
     "security.istio.io", "v1", "AuthorizationPolicy", "authorizationpolicies"
