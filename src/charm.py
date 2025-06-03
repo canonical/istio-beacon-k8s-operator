@@ -234,6 +234,17 @@ class IstioBeaconCharm(ops.CharmBase):
 
         self.unit.status = ActiveStatus()
 
+    def _collect_mesh_policies(self) -> List[MeshPolicy]:
+        """Return all the mesh policies that we need to create AuthorizationPolicies for.
+
+        This includes:
+        * MeshPolicies that we provide for other charms via the service mesh relation.
+        """
+        mesh_policies = []
+        # MeshPolicies that we provide for other charms via the service mesh relation
+        mesh_policies.extend(self._mesh.mesh_info())
+        return mesh_policies
+
     def _build_authorization_policies(self, mesh_info: List[MeshPolicy]):
         """Build all managed authorization policies."""
         authorization_policies = [None] * len(mesh_info)
@@ -266,7 +277,7 @@ class IstioBeaconCharm(ops.CharmBase):
                                     source=Source(
                                         principals=[
                                             _get_peer_identity_for_juju_application(
-                                                policy.source_app_name, self.model.name
+                                                policy.source_app_name, policy.source_namespace
                                             )
                                         ]
                                     )
@@ -340,9 +351,10 @@ class IstioBeaconCharm(ops.CharmBase):
 
     def _sync_authorization_policies(self):
         """Sync authorization policies."""
-        krm = self._get_authorization_policy_resource_manager()
+        mesh_policies = self._collect_mesh_policies()
+
         if self.config["manage-authorization-policies"]:
-            authorization_policies = self._build_authorization_policies(self._mesh.mesh_info())
+            authorization_policies = self._build_authorization_policies(mesh_policies)
             logger.debug("Reconciling state of AuthorizationPolicies to:")
             logger.debug(authorization_policies)
         else:
@@ -352,6 +364,8 @@ class IstioBeaconCharm(ops.CharmBase):
                 "AuthorizationPolicies creation is disabled - reconciling to no Authorization Policies."
             )
             authorization_policies = []
+
+        krm = self._get_authorization_policy_resource_manager()
         krm.reconcile(authorization_policies)  # type: ignore
 
     def _sync_waypoint_resources(self):
