@@ -30,7 +30,7 @@ Then instantiate a ServiceMeshConsumer object in the
 `__init__` method of your charm:
 
 ```
-from charms.istio_beacon_k8s.v0.service_mesh import Policy, ServiceMeshConsumer
+from charms.istio_beacon_k8s.v0.service_mesh import Method, Endpoint, Policy, ServiceMeshConsumer
 
 ...
 self._mesh = ServiceMeshConsumer(
@@ -42,7 +42,7 @@ self._mesh = ServiceMeshConsumer(
                 Endpoint(
                     hosts=[self._my_host_name],
                     ports=[HTTP_LISTEN_PORT],
-                    methods=["GET"],
+                    methods=[Method.get],
                     paths=["/metrics"],
                 ),
             ],
@@ -53,7 +53,7 @@ self._mesh = ServiceMeshConsumer(
                 Endpoint(
                     hosts=[self._my_host_name],
                     ports[HTTP_LISTEN_PORT],
-                    methods=["GET"]
+                    methods=[Method.get]
                     paths=["/data"],
                 ),
             ],
