@@ -22,9 +22,9 @@ async def validate_labels(ops_test: OpsTest, app_name: str, should_be_present: b
     namespace = client.get(Namespace, namespace_name)
 
     expected_labels = {
-        "istio.io/use-waypoint": f"{app_name}-{namespace_name}-waypoint",
+        "istio.io/use-waypoint": f"{namespace_name}-{app_name}-waypoint",
         "istio.io/dataplane-mode": "ambient",
-        "charms.canonical.com/istio.io.waypoint.managed-by": f"{app_name}-{namespace_name}",
+        "charms.canonical.com/istio.io.waypoint.managed-by": f"{namespace_name}.{app_name}",
     }
 
     for label, expected_value in expected_labels.items():

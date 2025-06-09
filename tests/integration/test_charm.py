@@ -147,6 +147,7 @@ async def test_service_mesh_relation(ops_test: OpsTest, service_mesh_tester):
 
 @pytest.mark.abort_on_fail
 async def test_modeloperator_rule(ops_test: OpsTest, service_mesh_tester):
+    """Test that we allow anything, even off-mesh workloads, to talk to the modeloperator in beacon's namespace."""
     assert ops_test.model
     # Ensure model is on mesh
     await ops_test.model.applications[APP_NAME].set_config({"model-on-mesh": "true"})
