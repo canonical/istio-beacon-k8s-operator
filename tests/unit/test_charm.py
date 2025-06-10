@@ -29,9 +29,9 @@ def harness():
             {},
             True,
             {
-                "istio.io/use-waypoint": "istio-beacon-k8s-istio-system-waypoint",
+                "istio.io/use-waypoint": "istio-system-istio-beacon-k8s-waypoint",
                 "istio.io/dataplane-mode": "ambient",
-                "charms.canonical.com/istio.io.waypoint.managed-by": "istio-beacon-k8s-istio-system",
+                "charms.canonical.com/istio.io.waypoint.managed-by": "istio-system.istio-beacon-k8s",
             },
         ),
         (
@@ -39,32 +39,32 @@ def harness():
             {"foo": "bar"},
             True,
             {
-                "istio.io/use-waypoint": "istio-beacon-k8s-istio-system-waypoint",
+                "istio.io/use-waypoint": "istio-system-istio-beacon-k8s-waypoint",
                 "istio.io/dataplane-mode": "ambient",
-                "charms.canonical.com/istio.io.waypoint.managed-by": "istio-beacon-k8s-istio-system",
+                "charms.canonical.com/istio.io.waypoint.managed-by": "istio-system.istio-beacon-k8s",
                 "foo": "bar",
             },
         ),
         (
             # Assert that, when we already manage the labels, they get updated
             {
-                "istio.io/use-waypoint": "istio-beacon-k8s-istio-system-waypoint",
+                "istio.io/use-waypoint": "istio-system-istio-beacon-k8s-waypoint",
                 # "istio.io/dataplane-mode": "ambient",  # omitted for this case on purpose
-                "charms.canonical.com/istio.io.waypoint.managed-by": "istio-beacon-k8s-istio-system",
+                "charms.canonical.com/istio.io.waypoint.managed-by": "istio-system.istio-beacon-k8s",
                 "foo": "bar",
             },
             True,
             {
-                "istio.io/use-waypoint": "istio-beacon-k8s-istio-system-waypoint",
+                "istio.io/use-waypoint": "istio-system-istio-beacon-k8s-waypoint",
                 "istio.io/dataplane-mode": "ambient",
-                "charms.canonical.com/istio.io.waypoint.managed-by": "istio-beacon-k8s-istio-system",
+                "charms.canonical.com/istio.io.waypoint.managed-by": "istio-system.istio-beacon-k8s",
                 "foo": "bar",
             },
         ),
         # Assert that, when we we do not manage the labels, they do not get updated
         (
             {
-                "istio.io/use-waypoint": "istio-beacon-k8s-istio-system-waypoint",
+                "istio.io/use-waypoint": "istio-system-istio-beacon-k8s-waypoint",
                 "istio.io/dataplane-mode": "ambient",  # omitted for this case on purpose
                 "foo": "bar",
             },
@@ -105,9 +105,9 @@ def test_add_labels(harness: Harness[IstioBeaconCharm], labels_before, patched, 
         (
             # Scenario 1: Namespace labels are managed by this charm
             {
-                "istio.io/use-waypoint": "istio-beacon-k8s-istio-system-waypoint",
+                "istio.io/use-waypoint": "istio-system-istio-beacon-k8s-waypoint",
                 "istio.io/dataplane-mode": "ambient",
-                "charms.canonical.com/istio.io.waypoint.managed-by": "istio-beacon-k8s-istio-system",
+                "charms.canonical.com/istio.io.waypoint.managed-by": "istio-system.istio-beacon-k8s",
                 "foo": "bar",
             },
             True,
@@ -135,7 +135,7 @@ def test_add_labels(harness: Harness[IstioBeaconCharm], labels_before, patched, 
         (
             # Scenario 3: Namespace labels are partially managed by this charm
             {
-                "charms.canonical.com/istio.io.waypoint.managed-by": "istio-beacon-k8s-istio-system",
+                "charms.canonical.com/istio.io.waypoint.managed-by": "istio-system.istio-beacon-k8s",
                 "foo": "bar",
             },
             True,
