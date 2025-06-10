@@ -92,7 +92,7 @@ to join the mesh. For legacy "podspec" style charms or charms deploying custom
 Kubernetes resources, you must manually apply the labels returned by
 `ServiceMeshConsumer.labels()` to your pods.
 
-## Provider 
+## Provider
 
 The ServiceMeshProvider implements the provider side of the juju relation. To provide a service mesh, instantiate ServiceMeshProvider in your charm's `__init__` method:
 
