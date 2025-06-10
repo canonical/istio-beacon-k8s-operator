@@ -53,7 +53,6 @@ class MyCharm(CharmBase):
                     relation="metrics",
                     endpoints=[
                         Endpoint(
-                            hosts=[self._my_host_name],
                             ports=[HTTP_LISTEN_PORT],
                             methods=[Method.get],
                             paths=["/metrics"],
@@ -64,7 +63,6 @@ class MyCharm(CharmBase):
                     relation="data",
                     endpoints=[
                         Endpoint(
-                            hosts=[self._my_host_name],
                             ports=[HTTP_LISTEN_PORT],
                             methods=[Method.get],
                             paths=["/data"],
@@ -76,14 +74,16 @@ class MyCharm(CharmBase):
 ```
 
 This example creates two policies:
-- When related over the `metrics` relation, the service mesh allows traffic to `/metrics`
-- When related over the `data` relation, the service mesh allows traffic to `/data`
+- When related over the `metrics` relation allow the related application to `GET` this application's `/metrics` endpoint on the specified port
+- When related over the `data` relation allow the relation application to `GET` this application's `/data` endpoint on the specified port
 
 ### Cross-Model Relations
+To request service mesh policies for cross-model relations, additional information is required.
 
-For cross-model relations, additional information is required to construct policies.
-Charms should also be related over the cross_model_mesh interface. When established,
-traffic will be allowed from the requirer to the provider.
+For any charm that wants to grant access to a related application (say, the above example
+charm providing a `data` relation), these charms must also implement and relate over the
+`cross_model_mesh` relation.  For `cross_model_mesh`, the charm granting access should be the
+provider, and the charm trying to communicate should be the requirer.
 
 ### Joining the Mesh
 
@@ -128,11 +128,11 @@ for policy in self._mesh.mesh_info():
 
 ## Data Models
 
-- **Method**: Enum for HTTP methods (GET, POST, PUT, etc.)
+- **Method**: Defines enum for HTTP methods (GET, POST, PUT, etc.)
 - **Endpoint**: Defines traffic endpoints with hosts, ports, methods, and paths
-- **Policy**: Relates endpoints to specific charm relations
+- **Policy**: Defines authorization policy for the consumer
 - **MeshPolicy**: Contains complete policy information for mesh configuration
-- **CMRData**: Cross-model relation metadata
+- **CMRData**: Contains cross-model relation metadata
 
 ## Examples
 
