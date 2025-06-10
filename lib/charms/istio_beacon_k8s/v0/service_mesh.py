@@ -1,20 +1,32 @@
 # Copyright 2024 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""#Service Mesh Library.
+"""# Service Mesh Library.
 
-The service mesh library is used to facilitate adding your charmed application to a service mesh.
-The library leverages the `service_mesh` and `cross_model_mesh` interfaces.
+This library facilitates adding your charmed application to a service mesh, leveraging the
+`service_mesh` and `cross_model_mesh` interfaces to provide secure, policy-driven traffic
+management between applications.
 
-##Consumer
+## Overview
 
-Service meshes provide a range of capabilities for routing, controlling, and monitoring traffic.  A key feature of many service meshes is the ability to restrict traffic between Pods based on L4 and L7 criteria.  For example, defining that a Pod MetricsScraper can `GET` from Pod MetricsProducer at `/metrics` on port `9090`, but SomeOtherPod cannot.
+Service meshes provide capabilities for routing, controlling, and monitoring traffic between
+applications. A key feature is the ability to restrict traffic between Pods. For example, you can define that Pod MetricsScraper can `GET` from Pod MetricsProducer
+at `/metrics` on port `9090`, while preventing SomeOtherPod from accessing it.
 
-The ServiceMeshConsumer object is used to subscribe a charm and its workloads to a related service mesh.  Since it is common for a relation between applications to indicate traffic flow (ex: if DbConsumer Requires a DbProducer), the ServiceMeshConsumer provides an optional way to automate creation of traffic rules based on app relations.
+## Consumer
 
-To add service mesh support to your charm, you must add 3 relations in your charmcraft.yaml.
+The ServiceMeshConsumer object subscribes a charm and its workloads to a related service mesh.
+Since application relations often indicate traffic flow patterns (e.g., DbConsumer requiring
+DbProducer), ServiceMeshConsumer provides automated creation of traffic rules based on
+application relations. \
 
-```
+The ServiceMeshConsumer implements the `requirer` side of the juju relation.
+
+### Setup
+
+First, add the required relations to your `charmcraft.yaml`:
+
+```yaml
 requires:
   service-mesh:
     limit: 1
@@ -26,80 +38,105 @@ provides:
     interface: cross_model_mesh
 ```
 
-Then instantiate a ServiceMeshConsumer object in the
-`__init__` method of your charm:
+Instantiate a ServiceMeshConsumer object in your charm's `__init__` method:
 
-```
+```python
 from charms.istio_beacon_k8s.v0.service_mesh import Method, Endpoint, Policy, ServiceMeshConsumer
 
-...
-self._mesh = ServiceMeshConsumer(
-    self,
-    policies=[
-        Policy(
-            relation="metrics",
-            endpoints=[
-                Endpoint(
-                    hosts=[self._my_host_name],
-                    ports=[HTTP_LISTEN_PORT],
-                    methods=[Method.get],
-                    paths=["/metrics"],
+class MyCharm(CharmBase):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self._mesh = ServiceMeshConsumer(
+            self,
+            policies=[
+                Policy(
+                    relation="metrics",
+                    endpoints=[
+                        Endpoint(
+                            hosts=[self._my_host_name],
+                            ports=[HTTP_LISTEN_PORT],
+                            methods=[Method.get],
+                            paths=["/metrics"],
+                        ),
+                    ],
+                ),
+                Policy(
+                    relation="data",
+                    endpoints=[
+                        Endpoint(
+                            hosts=[self._my_host_name],
+                            ports=[HTTP_LISTEN_PORT],
+                            methods=[Method.get],
+                            paths=["/data"],
+                        ),
+                    ],
                 ),
             ],
-        ),
-        Policy(
-            relation="data",
-            endpoint=[
-                Endpoint(
-                    hosts=[self._my_host_name],
-                    ports[HTTP_LISTEN_PORT],
-                    methods=[Method.get]
-                    paths=["/data"],
-                ),
-            ],
-        ),
-    ],
-)
+        )
 ```
 
-The example above specifies two policies. The resulting behaviour would be that when related over the `metrics` relation, the service mesh will allow traffic to the `/metrics` endpoint for the remote application and when related over the `data` endpoint, the service mesh will allow traffic to the `/data` endpoint.
+This example creates two policies:
+- When related over the `metrics` relation, the service mesh allows traffic to `/metrics`
+- When related over the `data` relation, the service mesh allows traffic to `/data`
 
-By using the above method, you can specify exactly which endpoints can be reached over which relations.
+### Cross-Model Relations
 
-###Cross Model relations
+For cross-model relations, additional information is required to construct policies.
+Charms should also be related over the cross_model_mesh interface. When established,
+traffic will be allowed from the requirer to the provider.
 
-If a ServiceMeshConsumer is creating a Policy for a relation that is cross model, additional information is required to construct the policy. To facilitate this, the charms can also be related over the cross_model_mesh interface. When that relation is established, traffic will be allowed from the requirer to the provider.
+### Joining the Mesh
 
-###Joining the Mesh
+For most charms, instantiating ServiceMeshConsumer automatically configures the charm
+to join the mesh. For legacy "podspec" style charms or charms deploying custom
+Kubernetes resources, you must manually apply the labels returned by
+`ServiceMeshConsumer.labels()` to your pods.
 
-For most charms, simply instantiating ServiceMeshConsumer should automatically configure the charm to be on the mesh. If your charm is the one of the old "podspec" style charms or your charm deploys custom k8s resources there is an addition step. You must apply the labels returned by `ServiceMeshConsumer.labels()` to your pods.
+## Provider 
 
-##Provider
+The ServiceMeshProvider implements the provider side of the juju relation. To provide a service mesh, instantiate ServiceMeshProvider in your charm's `__init__` method:
 
-To provide a service mesh, instantiate the ServiceMeshProvider object in the __init__ method
-of your charm:
-```
+```python
 from charms.istio_beacon_k8s.v0.service_mesh import ServiceMeshProvider
 
-...
-self._mesh = ServiceMeshProvider(
-    charm = self,
-    labels = {"my_service_mesh": "enable"},
-    mesh_relation_name = "service-mesh",
-)
+class MyServiceMeshCharm(CharmBase):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self._mesh = ServiceMeshProvider(
+            charm=self,
+            labels={"istio.io/dataplane-mode": "ambient"},
+            mesh_relation_name="service-mesh",
+        )
 ```
 
-The labels argument is the dict of labels that indicate to the service mesh that a Pod should be subscribed to the mesh.
-These will be sent to each related ServiceMeshConsumer to be used by the charm for per-Pod subscription.  These labels
-are service-mesh dependent - for example, for an Istio ambient mesh this should be
-{"istio.io/dataplane-mode": "ambient"}.
+### Configuration
 
-The provider also exposes the method `mesh_info` that returns a list of MeshPolicy objects. These MeshPolicy objects can be used to configure the service mesh.
+The `labels` argument specifies the labels that indicate to the service mesh that a Pod
+should be subscribed to the mesh. These labels are service-mesh specific, for eg.:
+- For Istio ambient mesh: `{"istio.io/dataplane-mode": "ambient"}`
+- For Istio sidecar mesh: `{"istio-injection": "enabled"}`
 
-```
+### Accessing Mesh Policies
+
+The provider exposes the `mesh_info()` method that returns a list of MeshPolicy objects
+for configuring the service mesh:
+
+```python
 for policy in self._mesh.mesh_info():
-    set_up_my_mesh(policy)
+    configure_service_mesh_policy(policy)
 ```
+
+## Data Models
+
+- **Method**: Enum for HTTP methods (GET, POST, PUT, etc.)
+- **Endpoint**: Defines traffic endpoints with hosts, ports, methods, and paths
+- **Policy**: Relates endpoints to specific charm relations
+- **MeshPolicy**: Contains complete policy information for mesh configuration
+- **CMRData**: Cross-model relation metadata
+
+## Examples
+
+See the charm implementation examples above for typical usage patterns.
 """
 
 import enum
