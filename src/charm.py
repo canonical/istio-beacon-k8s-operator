@@ -304,7 +304,7 @@ class IstioBeaconCharm(ops.CharmBase):
                     ),
                     spec=AuthorizationPolicySpec(
                         selector=WorkloadSelector(
-                            matchLabels={"operator.juju.is/name": "modeloperator"}
+                            matchLabels={"juju-modeloperator": "modeloperator"}
                         ),
                         rules=[Rule()],
                     ).model_dump(by_alias=True, exclude_unset=True, exclude_none=True),
