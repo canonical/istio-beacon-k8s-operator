@@ -142,10 +142,6 @@ for policy in self._mesh.mesh_info():
 - **Policy**: Defines authorization policy for the consumer
 - **MeshPolicy**: Contains complete policy information for mesh configuration
 - **CMRData**: Contains cross-model relation metadata
-
-## Examples
-
-See the charm implementation examples above for typical usage patterns.
 """
 
 import enum
