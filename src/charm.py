@@ -12,13 +12,13 @@ from typing import Dict, List
 
 import ops
 import pydantic
+from charmed_service_mesh_helpers import charm_kubernetes_label
 from charms.istio_beacon_k8s.v0.service_mesh import (
     Endpoint,
     MeshPolicy,
     Policy,
     ServiceMeshProvider,
     build_mesh_policies,
-    charm_kubernetes_label,
     get_data_from_cmr_relation,
 )
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
