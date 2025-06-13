@@ -125,6 +125,15 @@ class IstioBeaconCharm(ops.CharmBase):
                 ports=[METRICS_PORT],
             ),
         ]
+        relations = {policy.relation for policy in self._service_mesh_policies}
+        for relation in relations:
+            logger.debug(f"DEBUG: Observing created and broken events for relation: {relation}")
+            self.framework.observe(
+                self.on[relation].relation_created, self._on_config_changed
+            )
+            self.framework.observe(
+                self.on[relation].relation_broken, self._on_config_changed
+            )
 
         # Implement a simplified cross_model_mesh interface.  We need CMR data from things that relate to us, but we
         # don't need to send CMR data to other charms.
@@ -333,16 +342,30 @@ class IstioBeaconCharm(ops.CharmBase):
         * MeshPolicies that we provide for other charms via the service mesh relation.
         * MeshPolicies that we provide for other charms via the service mesh relation.
         """
+        logger.debug("Collecting mesh policies")
         mesh_policies = []
         # MeshPolicies that we provide for other charms via the service mesh relation
-        mesh_policies.extend(self._mesh.mesh_info())
+        mesh_policies_from_service_mesh = self._mesh.mesh_info()
+        logger.debug(
+            f"Collected the following policies to generate for other charms on the service mesh relation:"
+            f" {mesh_policies_from_service_mesh}"
+        )
+        mesh_policies.extend(mesh_policies_from_service_mesh)
 
         # MeshPolicies for applications that need access to this charm
         cmr_data = get_data_from_cmr_relation(self._cmr_relations)
-
-        mesh_policies.extend(
-            build_mesh_policies(self.model.relations, self.app.name, self.model.name, self._service_mesh_policies, cmr_data)
+        mesh_policies_from_apps_related_to_this_charm = build_mesh_policies(
+            relation_mapping=self.model.relations,
+            target_app_name=self.app.name,
+            target_namespace=self.model.name,
+            policies=self._service_mesh_policies,
+            cmr_application_data=cmr_data
         )
+        logger.debug(
+            f"Generated the following policies for apps needing access to istio-beacon:"
+            f" {mesh_policies_from_apps_related_to_this_charm}"
+        )
+        mesh_policies.extend(mesh_policies_from_apps_related_to_this_charm)
         return mesh_policies
 
     def _construct_waypoint(self):

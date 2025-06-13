@@ -579,7 +579,9 @@ def build_mesh_policies(
 
     mesh_policies = []
     for policy in policies:
+        logger.debug(f"Processing policy for relation endpoint '{policy.relation}'.")
         for relation in relation_mapping[policy.relation]:
+            logger.debug(f"Processing policy for related application '{relation.app.name}'.")
             if relation.app.name in cmr_application_data:
                 logger.debug(f"Found cross model relation: {relation.name}. Creating policy.")
                 source_app_name = cmr_application_data[relation.app.name].app_name
