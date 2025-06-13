@@ -120,7 +120,7 @@ async def test_deploy_environment(
 
     # Establish the relation between the istio-beacon and the receiver
     await receiver_model.model.add_relation(
-        APP_NAME, RECEIVER,
+        APP_NAME, f"{RECEIVER}:service-mesh",
     )
 
     # Wait for everything to settle
