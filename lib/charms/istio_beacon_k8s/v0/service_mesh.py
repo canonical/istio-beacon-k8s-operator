@@ -155,11 +155,11 @@ from lightkube.core.client import Client
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.apps_v1 import StatefulSet
 from lightkube.resources.core_v1 import ConfigMap
-from ops import CharmBase, Object, Relation
+from ops import CharmBase, Object, RelationMapping
 
 LIBID = "3f40cb7e3569454a92ac2541c5ca0a0c"  # Never change this
 LIBAPI = 0
-LIBPATCH = 2
+LIBPATCH = 3
 
 PYDEPS = ["lightkube", "pydantic"]
 
@@ -292,55 +292,22 @@ class ServiceMeshConsumer(Object):
         if self._relation is None:
             return
         logger.debug("Updating service mesh policies.")
-        mesh_policies = []
-        for policy in self._policies:
-            for relation in self._charm.model.relations[policy.relation]:
-                if cmr_relation := self._check_cmr(relation):
-                    logger.debug(f"Found cross model relation: {relation.name}. Creating policy.")
-                    cmr_data = CMRData.model_validate(
-                        json.loads(cmr_relation.data[cmr_relation.app]["cmr_data"])
-                    )
-                    mesh_policies.append(
-                        MeshPolicy(
-                            source_app_name=cmr_data.app_name,
-                            source_namespace=cmr_data.juju_model_name,
-                            target_app_name=self._charm.app.name,
-                            target_namespace=self._my_namespace(),
-                            target_service=policy.service,
-                            endpoints=policy.endpoints,
-                        ).model_dump()
-                    )
-                else:
-                    logger.debug(f"Found relation: {relation.name}. Creating policy.")
-                    mesh_policies.append(
-                        MeshPolicy(
-                            source_app_name=relation.app.name,
-                            source_namespace=self._my_namespace(),
-                            target_app_name=self._charm.app.name,
-                            target_namespace=self._my_namespace(),
-                            target_service=policy.service,
-                            endpoints=policy.endpoints,
-                        ).model_dump()
-                    )
+
+        # Collect the remote data from any fully established cross_model_relation integrations
+        # {remote application name: cmr relation data}
+        cmr_application_data = {
+            cmr.app.name: CMRData.model_validate(json.loads(cmr.data[cmr.app]["cmr_data"]))
+            for cmr in self._cmr_relations if "cmr_data" in cmr.data[cmr.app]
+        }
+
+        mesh_policies = build_mesh_policies(
+            relation_mapping=self._charm.model.relations,
+            target_app_name=self._charm.app.name,
+            target_namespace=self._my_namespace(),
+            policies=self._policies,
+            cmr_application_data=cmr_application_data
+        )
         self._relation.data[self._charm.app]["policies"] = json.dumps(mesh_policies)
-
-    def _check_cmr(self, mesh_relation: Relation) -> Optional[Relation]:
-        """Check if the given relation is a cmr. If so return the associated cross_model_mesh relation.
-
-        Returns:
-            Return an instance of the cmr relation if it is found and has data. If there is no
-            data or the relation does not exist, return None.
-        """
-        for cmr_rel in self._cmr_relations:
-            # These are the app names as seen by the consumer and are local to the model. When
-            # establishing cross-model relations, it is not possible to represent the app with an
-            # already existing name. Thus these names will always be unique.
-            if cmr_rel.app.name == mesh_relation.app.name:
-                if "cmr_data" not in cmr_rel.data[cmr_rel.app]:
-                    # Data has not yet been provided
-                    return None
-                return cmr_rel
-        return None
 
     def _my_namespace(self):
         """Return the namespace of the running charm."""
@@ -439,3 +406,44 @@ class ServiceMeshProvider(Object):
             policies = [MeshPolicy.model_validate(policy) for policy in policies_data]
             mesh_info.extend(policies)
         return mesh_info
+
+
+def build_mesh_policies(
+        relation_mapping: RelationMapping,
+        target_app_name: str,
+        target_namespace: str,
+        policies: List[Policy],
+        cmr_application_data: Dict[str, CMRData]
+) -> List[MeshPolicy]:
+    """Generate MeshPolicy that implement the given policies for the currently related applications.
+
+    Args:
+        relation_mapping: Charm's RelatioMapping object, for example self.model.relations.
+        target_app_name: The name of the target application, for example self.app.name.
+        target_namespace: The namespace of the target application, for example self.model.name.
+        policies: List of Policy objects defining the access rules.
+        cmr_application_data: Data for cross-model relations, mapping app names to CMRData.
+    """
+    mesh_policies = []
+    for policy in policies:
+        for relation in relation_mapping[policy.relation]:
+            if relation.app.name in cmr_application_data:
+                logger.debug(f"Found cross model relation: {relation.name}. Creating policy.")
+                source_app_name = cmr_application_data[relation.app.name].app_name
+                source_namespace = cmr_application_data[relation.app.name].juju_model_name
+            else:
+                logger.debug(f"Found in-model relation: {relation.name}. Creating policy.")
+                source_app_name = relation.app.name
+                source_namespace = target_namespace
+
+            mesh_policies.append(
+                MeshPolicy(
+                    source_app_name=source_app_name,
+                    source_namespace=source_namespace,
+                    target_app_name=target_app_name,
+                    target_namespace=target_namespace,
+                    target_service=policy.service,
+                    endpoints=policy.endpoints,
+                ).model_dump()
+            )
+    return mesh_policies
