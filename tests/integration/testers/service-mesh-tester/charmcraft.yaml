@@ -13,6 +13,14 @@ bases:
         channel: "20.04"
 
 config:
+  options:
+    auto-join-mesh:
+      type: boolean
+      default: true
+      description: |
+        Automatically join the mesh by applying relevant labels to the charm's K8s resources on 
+        relating via the service_mesh interface
+
 
 provides:
   inbound:
