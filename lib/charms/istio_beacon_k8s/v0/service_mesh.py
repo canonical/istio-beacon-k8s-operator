@@ -159,7 +159,7 @@ from ops import CharmBase, Object, RelationMapping
 
 LIBID = "3f40cb7e3569454a92ac2541c5ca0a0c"  # Never change this
 LIBAPI = 0
-LIBPATCH = 3
+LIBPATCH = 4
 
 PYDEPS = ["lightkube", "pydantic"]
 
@@ -375,25 +375,7 @@ class ServiceMeshConsumer(Object):
         client.delete(res=ConfigMap, name=self._label_configmap_name)
 
 
-class ServiceMeshProvider(Object):## Issue
-<!-- What issue is this PR trying to solve? -->
-
-
-## Solution
-<!-- A summary of the solution addressing the above issue -->
-
-
-## Context
-<!-- What is some specialized knowledge relevant to this project/technology -->
-
-
-## Testing Instructions
-<!-- What steps need to be taken to test this PR? -->
-
-
-## Upgrade Notes
-<!-- To upgrade from an older revision of charmed prometheus, ... -->
-
+class ServiceMeshProvider(Object):
     """Provide a service mesh to applications."""
 
     def __init__(
