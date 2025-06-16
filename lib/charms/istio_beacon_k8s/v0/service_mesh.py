@@ -154,12 +154,12 @@ import pydantic
 from lightkube.core.client import Client
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.apps_v1 import StatefulSet
-from lightkube.resources.core_v1 import ConfigMap
+from lightkube.resources.core_v1 import ConfigMap, Service
 from ops import CharmBase, Object, Relation
 
 LIBID = "3f40cb7e3569454a92ac2541c5ca0a0c"  # Never change this
 LIBAPI = 0
-LIBPATCH = 2
+LIBPATCH = 3
 
 PYDEPS = ["lightkube", "pydantic"]
 
@@ -364,6 +364,8 @@ class ServiceMeshConsumer(Object):
     def _set_labels(self, labels: dict) -> None:
         client = Client(namespace=self._charm.model.name, field_manager=self._charm.app.name)
         stateful_set = client.get(res=StatefulSet, name=self._charm.app.name)
+        service = client.get(res=Service, name=self._charm.app.name)
+
         try:
             config_map = client.get(ConfigMap, self._label_configmap_name)
         except httpx.HTTPStatusError as e:
@@ -377,11 +379,17 @@ class ServiceMeshConsumer(Object):
                 if label not in labels:
                     # The label was previously set. Setting it to None will delete it.
                     labels[label] = None
+
         if stateful_set.spec:
             stateful_set.spec.template.metadata.labels.update(labels)  # type: ignore
+        if service.metadata:
+            service.metadata.labels = service.metadata.labels or {}
+            service.metadata.labels.update(labels)
         config_map.data = {"labels": json.dumps(labels)}
+
         client.patch(res=ConfigMap, name=self._label_configmap_name, obj=config_map)
         client.patch(res=StatefulSet, name=self._charm.app.name, obj=stateful_set)
+        client.patch(res=Service, name=self._charm.app.name, obj=service)
 
     def _create_label_configmap(self, client) -> ConfigMap:
         """Create an empty ConfigMap unique to this charm."""
