@@ -86,7 +86,7 @@ def assert_request_returns_http_code(
             "-m",
             model,
             source_unit,
-            f'python3 -c "import requests; resp = requests.{method}(\\"{target_url}\\"); print(resp.status_code)"',
+            f'curl -X {method.upper()} -s -o /dev/null -w "%{{http_code}}" {target_url}',
             _return_cmd=True,
         )
         returned_code = int(str(resp).strip())

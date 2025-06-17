@@ -76,30 +76,81 @@ async def test_mesh_config(ops_test: OpsTest):
         )
 
 
+# TODO: use pytest-dependency instead of relying on test evaluation order
 @pytest.mark.abort_on_fail
-async def test_service_mesh_relation(ops_test: OpsTest, service_mesh_tester):
-    assert ops_test.model
-    # Ensure model is on mesh
-    await ops_test.model.applications[APP_NAME].set_config({"model-on-mesh": "true"})
-    time.sleep(5)  # Wait for the model to be on mesh
+async def test_deploy_service_mesh_apps(ops_test: OpsTest, service_mesh_tester):
+    """Deploy the required tester apps onto the test model required for testing service mesh relation.
 
+    This step deploys the tester apps and adds required relation between the testers and the
+    istio beacon. This step must run before testing the service mesh relation. This step is branched
+    off as the service mesh relation test is a parametrized test that needs to run multiple times without
+    having to redeploy the tester apps.
+    """
+    assert ops_test.model
     # Deploy tester charms
     resources = {"echo-server-image": "jmalloc/echo-server:v0.3.7"}
     # Applications that will be given authorization policies
     # receiver1 require trust because the service-mesh library interacts with k8s objects.
     await ops_test.model.deploy(
-        service_mesh_tester, application_name="receiver1", resources=resources, trust=True
+        service_mesh_tester,
+        application_name="receiver1",
+        resources=resources,
+        trust=True,
     )
     await ops_test.model.deploy(
-        service_mesh_tester, application_name="sender1", resources=resources, trust=True
+        service_mesh_tester,
+        application_name="sender1",
+        resources=resources,
+        trust=True,
     )
     await ops_test.model.deploy(
-        service_mesh_tester, application_name="sender2", resources=resources, trust=True
+        service_mesh_tester,
+        application_name="sender2",
+        resources=resources,
+        trust=True,
     )
-    await ops_test.model.add_relation("receiver1:service-mesh", APP_NAME)
-    await ops_test.model.add_relation("receiver1:inbound", "sender1:outbound")
 
-    await ops_test.model.wait_for_idle([APP_NAME, "receiver1", "sender1", "sender2"])
+    await ops_test.model.add_relation("receiver1:service-mesh", APP_NAME)
+    await ops_test.model.add_relation("sender1:service-mesh", APP_NAME)
+    await ops_test.model.add_relation("receiver1:inbound", "sender1:outbound")
+    await ops_test.model.wait_for_idle(
+        [
+            APP_NAME,
+            "receiver1",
+            "sender1",
+            "sender2",
+        ],
+        raise_on_error=False,
+    )
+
+
+@pytest.mark.abort_on_fail
+@pytest.mark.parametrize("model_on_mesh", [True, False])
+async def test_service_mesh_relation(ops_test: OpsTest, model_on_mesh):
+    """Test the if the service mesh relation correctly puts the tester applications on mesh and opens restricts traffic as expected.
+
+    The test sets `auto-join-mesh` for the tester charm based on the `model_on_mesh` parameter.  So:
+    * when `model_on_mesh=True` we set `auto-join-mesh=False` to test that the model has subscribed the apps
+    * when `model_on_mesh=False` we set `auto-join-mesh=True` to test that the apps have subscribed themselves
+    """
+    assert ops_test.model
+    # Configure model-on-mesh based on parameter
+    await ops_test.model.applications[APP_NAME].set_config({"model-on-mesh": str(model_on_mesh).lower()})
+    time.sleep(5)  # Wait for the model to be on mesh
+
+    # configure auto-join for the apps based on model_on_mesh
+    await ops_test.model.applications["receiver1"].set_config({"auto-join-mesh": str(not model_on_mesh).lower()})
+    await ops_test.model.applications["sender1"].set_config({"auto-join-mesh": str(not model_on_mesh).lower()})
+    await ops_test.model.applications["sender2"].set_config({"auto-join-mesh": str(not model_on_mesh).lower()})
+    await ops_test.model.wait_for_idle(
+        [
+            APP_NAME,
+            "receiver1",
+            "sender1",
+            "sender2",
+        ],
+        raise_on_error=False,
+    )
 
     # Assert that communication is correctly controlled
     # sender/0 can talk to receiver on any combination of:
@@ -108,24 +159,44 @@ async def test_service_mesh_relation(ops_test: OpsTest, service_mesh_tester):
     # * method: [GET, POST]
     # but not others
     assert_request_returns_http_code(
-        ops_test.model.name, "sender1/0", "http://receiver1:8080/foo", code=200
+        ops_test.model.name,
+        "sender1/0",
+        "http://receiver1:8080/foo",
+        code=200,
     )
     assert_request_returns_http_code(
-        ops_test.model.name, "sender1/0", "http://receiver1:8081/foo", code=200
+        ops_test.model.name,
+        "sender1/0",
+        "http://receiver1:8081/foo",
+        code=200,
     )
     assert_request_returns_http_code(
-        ops_test.model.name, "sender1/0", "http://receiver1:8080/bar/", code=200
+        ops_test.model.name,
+        "sender1/0",
+        "http://receiver1:8080/bar/",
+        code=200,
     )
     assert_request_returns_http_code(
-        ops_test.model.name, "sender1/0", "http://receiver1:8080/foo", method="post", code=200
+        ops_test.model.name,
+        "sender1/0",
+        "http://receiver1:8080/foo",
+        method="post",
+        code=200,
     )
     assert_request_returns_http_code(
-        ops_test.model.name, "sender1/0", "http://receiver1:8080/foo", method="delete", code=403
+        ops_test.model.name,
+        "sender1/0",
+        "http://receiver1:8080/foo",
+        method="delete",
+        code=403,
     )
 
-    # other service accounts should get a 403 error
+    # other service accounts should get a 403 error if model on mesh else should raise an exit code 1 as connection will be refused
     assert_request_returns_http_code(
-        ops_test.model.name, "sender2/0", "http://receiver1:8080/foo", code=403
+        ops_test.model.name,
+        "sender2/0",
+        "http://receiver1:8080/foo",
+        code=403 if model_on_mesh else 1,
     )
 
 

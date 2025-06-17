@@ -13,6 +13,13 @@ bases:
         channel: "20.04"
 
 config:
+  options:
+    auto-join-mesh:
+      type: boolean
+      default: true
+      description: |
+        Used for `ServiceMeshConsumer`'s `auto_join` argument, which controls whether this charm will add itself to the mesh if there is a service_mesh relation established to a beacon.
+
 
 provides:
   inbound:

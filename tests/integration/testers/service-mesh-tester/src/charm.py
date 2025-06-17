@@ -32,7 +32,7 @@ class ServiceMeshTester(CharmBase):
                     ],
                 ),
             ],
-            auto_join=False,
+            auto_join=bool(self.config["auto-join-mesh"]),
         )
 
         self.framework.observe(self.on.echo_server_pebble_ready, self.on_pebble_ready)
