@@ -333,6 +333,8 @@ class ServiceMeshConsumer(Object):
         stateful_set = client.get(res=StatefulSet, name=self._charm.app.name)
         service = client.get(res=Service, name=self._charm.app.name)
 
+        # NOTE: A config map here is used to state of the labels provided by the ServiceMeshProvider.
+        # This configmap then serves as a db to check which labels are owned by the ServiceMesh for safe updates.
         try:
             config_map = client.get(ConfigMap, self._label_configmap_name)
         except httpx.HTTPStatusError as e:

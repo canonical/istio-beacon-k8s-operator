@@ -76,8 +76,16 @@ async def test_mesh_config(ops_test: OpsTest):
         )
 
 
+# TODO: use pytest-dependency instead of relying on test evaluation order
 @pytest.mark.abort_on_fail
 async def test_deploy_service_mesh_apps(ops_test: OpsTest, service_mesh_tester):
+    """Deploy the required tester apps onto the test model required for testing service mesh relation.
+
+    This step deploys the tester apps and adds required relation between the testers and the
+    istio beacon. This step must run before testing the service mesh relation. This step is branched
+    off as the service mesh relation test is a parametrized test that needs to run multiple times without
+    having to redeploy the tester apps.
+    """
     assert ops_test.model
     # Deploy tester charms
     resources = {"echo-server-image": "jmalloc/echo-server:v0.3.7"}
@@ -119,6 +127,12 @@ async def test_deploy_service_mesh_apps(ops_test: OpsTest, service_mesh_tester):
 @pytest.mark.abort_on_fail
 @pytest.mark.parametrize("model_on_mesh", [True, False])
 async def test_service_mesh_relation(ops_test: OpsTest, model_on_mesh):
+    """Test the if the service mesh relation correctly puts the tester applications on mesh and opens restricts traffic as expected.
+
+    The test sets `auto-join-mesh` for the tester charm based on the `model_on_mesh` parameter.  So:
+    * when `model_on_mesh=True` we set `auto-join-mesh=False` to test that the model has subscribed the apps
+    * when `model_on_mesh=False` we set `auto-join-mesh=True` to test that the apps have subscribed themselves
+    """
     assert ops_test.model
     # Configure model-on-mesh based on parameter
     await ops_test.model.applications[APP_NAME].set_config({"model-on-mesh": str(model_on_mesh).lower()})
