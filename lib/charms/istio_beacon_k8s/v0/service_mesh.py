@@ -151,7 +151,7 @@ from typing import Dict, List, Optional
 
 import httpx
 import pydantic
-from lightkube.core.client import Client
+from lightkube import Client
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.apps_v1 import StatefulSet
 from lightkube.resources.core_v1 import ConfigMap, Service
@@ -159,11 +159,15 @@ from ops import CharmBase, Object, RelationMapping
 
 LIBID = "3f40cb7e3569454a92ac2541c5ca0a0c"  # Never change this
 LIBAPI = 0
-LIBPATCH = 4
+LIBPATCH = 5
 
 PYDEPS = ["lightkube", "pydantic"]
 
 logger = logging.getLogger(__name__)
+
+# Juju application names are limited to 63 characters, so we can use the app_name directly here and still keep under
+# Kubernetes's 253 character limit.
+label_configmap_name_template = "juju-service-mesh-{app_name}-labels"
 
 
 class Method(str, enum.Enum):
@@ -245,7 +249,8 @@ class ServiceMeshConsumer(Object):
         self._relation = self._charm.model.get_relation(mesh_relation_name)
         self._cmr_relations = self._charm.model.relations[cross_model_mesh_provides_name]
         self._policies = policies or []
-        self._label_configmap_name = f"juju-service-mesh-{self._charm.app.name}-labels"
+        self._label_configmap_name = label_configmap_name_template.format(app_name=self._charm.app.name)
+        self._lightkube_client = None
         if auto_join:
             self.framework.observe(
                 self._charm.on[mesh_relation_name].relation_changed, self._update_labels
@@ -329,52 +334,35 @@ class ServiceMeshConsumer(Object):
         self._set_labels(self.labels())
 
     def _set_labels(self, labels: dict) -> None:
-        client = Client(namespace=self._charm.model.name, field_manager=self._charm.app.name)
-        stateful_set = client.get(res=StatefulSet, name=self._charm.app.name)
-        service = client.get(res=Service, name=self._charm.app.name)
-
-        # NOTE: A config map here is used to state of the labels provided by the ServiceMeshProvider.
-        # This configmap then serves as a db to check which labels are owned by the ServiceMesh for safe updates.
-        try:
-            config_map = client.get(ConfigMap, self._label_configmap_name)
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 404:
-                config_map = self._create_label_configmap(client)
-            else:
-                raise
-        if config_map.data:
-            config_map_labels = json.loads(config_map.data["labels"])
-            for label in config_map_labels:
-                if label not in labels:
-                    # The label was previously set. Setting it to None will delete it.
-                    labels[label] = None
-
-        if stateful_set.spec:
-            stateful_set.spec.template.metadata.labels.update(labels)  # type: ignore
-        if service.metadata:
-            service.metadata.labels = service.metadata.labels or {}
-            service.metadata.labels.update(labels)
-        config_map.data = {"labels": json.dumps(labels)}
-
-        client.patch(res=ConfigMap, name=self._label_configmap_name, obj=config_map)
-        client.patch(res=StatefulSet, name=self._charm.app.name, obj=stateful_set)
-        client.patch(res=Service, name=self._charm.app.name, obj=service)
-
-    def _create_label_configmap(self, client) -> ConfigMap:
-        """Create an empty ConfigMap unique to this charm."""
-        obj = ConfigMap(
-            data={"labels": "{}"},
-            metadata=ObjectMeta(
-                name=self._label_configmap_name,
-                namespace=self._charm.model.name,
-            ),
+        """Add labels to the charm's Pods (via StatefulSet) and Service to put the charm on the mesh."""
+        reconcile_charm_labels(
+            client=self.lightkube_client,
+            app_name=self._charm.app.name,
+            namespace=self._charm.model.name,
+            label_configmap_name=self._label_configmap_name,
+            labels=labels
         )
-        client.create(obj=obj)
-        return obj
 
     def _delete_label_configmap(self) -> None:
-        client = Client(namespace=self._charm.model.name, field_manager=self._charm.app.name)
+        client = self.lightkube_client
         client.delete(res=ConfigMap, name=self._label_configmap_name)
+
+    @property
+    def lightkube_client(self):
+        """Returns a lightkube client configured for this library.
+
+        This indirection is implemented to avoid complex mocking in integration tests, allowing the integration tests to
+        do something equivalent to:
+            ```python
+           mesh_consumer = ServiceMeshConsumer(...)
+           mesh_consumer._lightkube_client = mocked_lightkube_client
+           ```
+        """
+        if self._lightkube_client is None:
+            self._lightkube_client = Client(
+                namespace=self._charm.model.name, field_manager=self._charm.app.name
+            )
+        return self._lightkube_client
 
 
 class ServiceMeshProvider(Object):
@@ -457,3 +445,70 @@ def build_mesh_policies(
                 ).model_dump()
             )
     return mesh_policies
+
+
+def reconcile_charm_labels(client: Client, app_name: str, namespace: str,  label_configmap_name: str, labels: Dict[str, str]) -> None:
+    """Reconciles zero or more user-defined additional Kubernetes labels that are put on a Charm's Kubernetes objects.
+
+    This function manages a group of user-defined labels that are added to a Charm's Kubernetes objects (the charm Pods
+    (via editing the StatefulSet) and Service).  Its primary uses are:
+    * adding labels to a Charm's objects
+    * updating or removing labels on a Charm's Kubernetes objects that were previously set by this method
+
+    To enable removal of labels, we also create a ConfigMap that stores the labels we last set.  This way the function
+    itself can be stateless.
+
+    This function takes a little care to avoid removing labels added by other means, but it does not provide exhaustive
+    guarantees for safety.  It is up to the caller to ensure that the labels they pass in are not already in use.
+
+    Args:
+        client: The lightkube Client to use for Kubernetes API calls.
+        app_name: The name of the application (Charm) to reconcile labels for.
+        namespace: The namespace in which the application is running.
+        label_configmap_name: The name of the ConfigMap that stores the labels.
+        labels: A dictionary of labels to set on the Charm's Kubernetes objects. Any labels that were previously created
+                by this method but omitted in `labels` now will be removed from the Kubernetes objects.
+    """
+    patch_labels = {}
+    patch_labels.update(labels)
+    stateful_set = client.get(res=StatefulSet, name=app_name)
+    service = client.get(res=Service, name=app_name)
+    try:
+        config_map = client.get(ConfigMap, label_configmap_name)
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            config_map = _init_label_configmap(client, label_configmap_name, namespace)
+        else:
+            raise
+    if config_map.data:
+        config_map_labels = json.loads(config_map.data["labels"])
+        for label in config_map_labels:
+            if label not in patch_labels:
+                # The label was previously set. Setting it to None will delete it.
+                patch_labels[label] = None
+    if stateful_set.spec:
+        stateful_set.spec.template.metadata.labels.update(patch_labels)  # type: ignore
+    if service.metadata:
+        service.metadata.labels = service.metadata.labels or {}
+        service.metadata.labels.update(patch_labels)
+
+    # Store our actively managed labels in a ConfigMap so next call we know which we might need to delete.
+    # This should not include any labels that are nulled out as they're now out of scope.
+    config_map_labels = {k: v for k, v in patch_labels.items() if v is not None}
+    config_map.data = {"labels": json.dumps(config_map_labels)}
+    client.patch(res=ConfigMap, name=label_configmap_name, obj=config_map)
+    client.patch(res=StatefulSet, name=app_name, obj=stateful_set)
+    client.patch(res=Service, name=app_name, obj=service)
+
+
+def _init_label_configmap(client, name, namespace) -> ConfigMap:
+    """Create a ConfigMap with data of {labels: {}}, returning the lightkube ConfigMap object."""
+    obj = ConfigMap(
+        data={"labels": "{}"},
+        metadata=ObjectMeta(
+            name=name,
+            namespace=namespace,
+        ),
+    )
+    client.create(obj=obj)
+    return obj

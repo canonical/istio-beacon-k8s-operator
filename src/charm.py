@@ -17,7 +17,7 @@ from charms.istio_beacon_k8s.v0.service_mesh import MeshPolicy, ServiceMeshProvi
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.tempo_coordinator_k8s.v0.charm_tracing import trace_charm
 from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer
-from lightkube.core.client import Client
+from lightkube import Client
 from lightkube.core.exceptions import ApiError
 from lightkube.generic_resource import create_namespaced_resource
 from lightkube.models.meta_v1 import ObjectMeta
@@ -105,7 +105,6 @@ class IstioBeaconCharm(ops.CharmBase):
             max_length=63
         )
 
-
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.remove, self._on_remove)
         self.framework.observe(
@@ -170,7 +169,15 @@ class IstioBeaconCharm(ops.CharmBase):
 
     @property
     def lightkube_client(self):
-        """Returns a lightkube client configured for this charm."""
+        """Returns a lightkube client configured for this charm.
+
+        This indirection is implemented to avoid complex mocking in integration tests, allowing the integration tests to
+        do something equivalent to:
+            ```python
+           charm = IstioBeaconCharm(...)  # (or more realistically, receive this object from harness or scenario)
+           charm._lightkube_client = mocked_lightkube_client
+           ```
+        """
         if self._lightkube_client is None:
             self._lightkube_client = Client(
                 namespace=self.model.name, field_manager=self._lightkube_field_manager

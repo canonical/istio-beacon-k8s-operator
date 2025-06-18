@@ -8,7 +8,6 @@ from unittest.mock import patch
 import pytest
 import scenario
 from charms.tempo_coordinator_k8s.v0 import charm_tracing
-from lightkube import Client
 
 from charm import IstioBeaconCharm
 
@@ -20,17 +19,28 @@ def charm_tracing_buffer_to_tmp(tmp_path):
 
 
 @pytest.fixture(autouse=True)
-def mock_lightkube_client(request):
-    """Global mock for the Lightkube Client to avoid loading kubeconfig in CI."""
+def mock_charm_lightkube_client(request):
+    """Global mock for the Charm's Lightkube Client to avoid loading kubeconfig in CI."""
     # Skip this fixture if the test has explicitly disabled it.
-    # To use this feature in a test, mark it with @pytest.mark.disable_lightkube_client_autouse
-    if "disable_lightkube_client_autouse" in request.keywords:
+    # To use this feature in a test, mark it with @pytest.mark.disable_charm_lightkube_client_autouse
+    if "disable_charm_lightkube_client_autouse" in request.keywords:
         yield
     else:
-        with patch.object(Client, "__init__", lambda self, *args, **kwargs: None):
-            with patch.object(Client, "get"):
-                with patch.object(Client, "patch"):
-                    yield
+        with patch("charm.Client") as mocked_lightkube_client:
+            yield mocked_lightkube_client
+
+
+@pytest.fixture(autouse=True)
+def mock_lib_lightkube_client(request):
+    """Global mock for the service mesh library's Lightkube Client to avoid loading kubeconfig in CI."""
+    # Skip this fixture if the test has explicitly disabled it.
+    # To use this feature in a test, mark it with @pytest.mark.disable_service_lightkube_client_autouse
+    if "disable_service_lightkube_client_autouse" in request.keywords:
+        yield
+    else:
+        # patch Client usage in service_mesh library
+        with patch("charms.istio_beacon_k8s.v0.service_mesh.Client") as mocked_lightkube_client:
+            yield mocked_lightkube_client
 
 
 @pytest.fixture()
