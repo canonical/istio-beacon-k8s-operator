@@ -13,7 +13,12 @@ from typing import Dict, List
 import ops
 import pydantic
 from charmed_service_mesh_helpers import charm_kubernetes_label
-from charms.istio_beacon_k8s.v0.service_mesh import MeshPolicy, ServiceMeshProvider
+from charms.istio_beacon_k8s.v0.service_mesh import (
+    MeshPolicy,
+    ServiceMeshProvider,
+    label_configmap_name_template,
+    reconcile_charm_labels,
+)
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.tempo_coordinator_k8s.v0.charm_tracing import trace_charm
 from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer
@@ -96,6 +101,8 @@ class IstioBeaconCharm(ops.CharmBase):
             self._tracing.get_endpoint("otlp_http") if self._tracing.relations else None
         )
 
+        self._label_configmap_name = label_configmap_name_template.format(app_name=self.app.name)
+
         # This waypoint name must be used in a kubernetes label, so generate it with a max length of 63 characters.
         self._waypoint_name = charm_kubernetes_label(
             model_name=self.model.name,
@@ -110,7 +117,7 @@ class IstioBeaconCharm(ops.CharmBase):
         self.framework.observe(
             self.on.metrics_proxy_pebble_ready, self._metrics_proxy_pebble_ready
         )
-        self._mesh = ServiceMeshProvider(self, labels=self.mesh_labels())
+        self._mesh = ServiceMeshProvider(self, labels=self.mesh_labels_for_service_mesh_relation())
 
         self.framework.observe(self.on["service-mesh"].relation_changed, self.on_mesh_changed)
         self.framework.observe(self.on["service-mesh"].relation_broken, self.on_mesh_broken)
@@ -239,6 +246,9 @@ class IstioBeaconCharm(ops.CharmBase):
         if not self.unit.is_leader():
             self.unit.status = BlockedStatus("Waypoint can only be provided on the leader unit.")
             return
+
+        self.unit.status = MaintenanceStatus("Updating this charm's labels to ensure it is on the mesh")
+        self._put_charm_on_mesh()
 
         self.unit.status = MaintenanceStatus("Validating waypoint readiness")
         self._sync_waypoint_resources()
@@ -473,10 +483,17 @@ class IstioBeaconCharm(ops.CharmBase):
             namespace.metadata.labels.update(labels_to_remove)
             self._patch_namespace(namespace)
 
-    def mesh_labels(self):
-        """Labels required for a workload to join the mesh."""
+    def mesh_labels_for_service_mesh_relation(self):
+        """Labels required to put a related Charm's Kubernetes objects on the mesh.
+
+        Note: The return of this function is guarded by whether model-on-mesh=True.
+        """
         if self.config["model-on-mesh"]:
             return {}
+        return self.mesh_labels()
+
+    def mesh_labels(self):
+        """Labels required to put a related Charm's Kubernetes objects on the mesh."""
         return {
             "istio.io/dataplane-mode": "ambient",
             "istio.io/use-waypoint": self._waypoint_name,
@@ -521,6 +538,19 @@ class IstioBeaconCharm(ops.CharmBase):
                 ]
             )
         return name
+
+    def _put_charm_on_mesh(self):
+        """Ensure the charm is on the mesh by adding necessary labels to the Pod (via the StatefulSet) and Service.
+
+        This will trigger Pod termination and recreation if these labels don't already exist.
+        """
+        reconcile_charm_labels(
+            client=self.lightkube_client,
+            app_name=self.app.name,
+            namespace=self.model.name,
+            label_configmap_name=self._label_configmap_name,
+            labels=self.mesh_labels()
+        )
 
     @staticmethod
     def format_labels(label_dict: Dict[str, str]) -> str:
