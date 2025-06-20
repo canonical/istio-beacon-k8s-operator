@@ -4,7 +4,6 @@
 # See LICENSE file for licensing details.
 
 import logging
-import time
 from dataclasses import asdict
 from pathlib import Path
 
@@ -17,6 +16,8 @@ from helpers import (
     validate_labels,
     validate_policy_exists,
 )
+from lightkube.core.client import Client
+from lightkube.resources.core_v1 import Pod
 from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
@@ -51,6 +52,18 @@ async def test_deployment(ops_test: OpsTest, istio_beacon_charm):
     await ops_test.model.wait_for_idle(
         [APP_NAME], status="active", timeout=1000, raise_on_error=False
     )
+
+
+async def test_istio_beacon_is_on_the_mesh(ops_test: OpsTest):
+    """Test that the istio-beacon is on the mesh."""
+    assert ops_test.model
+    c = Client()
+    beacon_pod = c.get(Pod, name=f"{APP_NAME}-0", namespace=ops_test.model.name)
+
+    # Istio adds the following annotation to and pods on the mesh
+    assert beacon_pod.metadata is not None
+    assert beacon_pod.metadata.annotations is not None
+    assert beacon_pod.metadata.annotations.get("ambient.istio.io/redirection", None) == "enabled"
 
 
 @pytest.mark.abort_on_fail
@@ -136,12 +149,14 @@ async def test_service_mesh_relation(ops_test: OpsTest, model_on_mesh):
     assert ops_test.model
     # Configure model-on-mesh based on parameter
     await ops_test.model.applications[APP_NAME].set_config({"model-on-mesh": str(model_on_mesh).lower()})
-    time.sleep(5)  # Wait for the model to be on mesh
+    # Wait for the mesh configuration for this model to be applied
+    await ops_test.model.wait_for_idle([APP_NAME], raise_on_error=False)
 
     # configure auto-join for the apps based on model_on_mesh
     await ops_test.model.applications["receiver1"].set_config({"auto-join-mesh": str(not model_on_mesh).lower()})
     await ops_test.model.applications["sender1"].set_config({"auto-join-mesh": str(not model_on_mesh).lower()})
-    await ops_test.model.applications["sender2"].set_config({"auto-join-mesh": str(not model_on_mesh).lower()})
+    # Do not set auto-join for sender2, as it is not part of the mesh anyway
+    # await ops_test.model.applications["sender2"].set_config({"auto-join-mesh": str(not model_on_mesh).lower()})
     await ops_test.model.wait_for_idle(
         [
             APP_NAME,

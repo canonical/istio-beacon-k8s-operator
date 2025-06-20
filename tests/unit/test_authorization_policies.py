@@ -130,6 +130,7 @@ def test_build_authorization_policies(
 
 
 @pytest.mark.parametrize("create_authorization_policies", [True, False])
+@patch("charm.IstioBeaconCharm._put_charm_on_mesh")
 @patch("charm.IstioBeaconCharm._setup_proxy_pebble_service")
 @patch("charm.IstioBeaconCharm._is_waypoint_deployment_ready", return_value=True)
 @patch("charm.IstioBeaconCharm._get_waypoint_resource_manager")
@@ -139,6 +140,7 @@ def test_charm_creates_authorization_policies_on_relation_changed(
     _mock_get_waypoint_resource_manager,
     _mock_is_waypoint_deployment_ready,
     _mock_setup_proxy_pebble_service,
+    _mock_put_charm_on_mesh,
     create_authorization_policies,
     istio_beacon_charm,
     istio_beacon_context,
