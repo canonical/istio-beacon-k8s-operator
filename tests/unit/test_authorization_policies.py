@@ -143,7 +143,6 @@ def test_charm_creates_authorization_policies_on_relation_changed(
     istio_beacon_charm,
     istio_beacon_context,
     service_mesh_relation,
-    mock_lightkube_client,
 ):
     """Test that the charm config create_authorization_policies controls whether AuthorizationPolicies are created."""
     istio_beacon_context.run(
