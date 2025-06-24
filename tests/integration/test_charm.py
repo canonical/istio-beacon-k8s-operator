@@ -40,7 +40,7 @@ class CharmDeploymentConfiguration:
 
 
 ISTIO_K8S = CharmDeploymentConfiguration(
-    entity_url="istio-k8s", application_name="istio-k8s", channel="latest/edge", trust=True
+    entity_url="istio-k8s", application_name="istio-k8s", channel="1/edge", trust=True
 )
 
 
