@@ -51,6 +51,10 @@ requires:
       Endpoint for integrating over a `tracing` interface and sending charm traces 
       to a distributed tracing backend such as Tempo.
 
+peers:
+  peers:
+    interface: istio_beacon_k8s_peers
+
 config:
   options:
     manage-authorization-policies:
