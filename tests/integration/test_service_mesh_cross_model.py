@@ -6,20 +6,17 @@
 """Tests that istio-beacon creates AuthorizationPolicies that enable traffic for charms related cross-model."""
 
 from dataclasses import asdict
-from pathlib import Path
 
 import pytest
-import yaml
-from helpers import assert_request_returns_http_code, istio_k8s
+from helpers import (
+    APP_NAME,
+    RECEIVER,
+    RESOURCES,
+    SENDER,
+    assert_request_returns_http_code,
+    istio_k8s,
+)
 from pytest_operator.plugin import ModelState, OpsTest
-
-METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
-APP_NAME = METADATA["name"]
-SENDER = "sender"
-RECEIVER = "receiver"
-RESOURCES = {
-    "metrics-proxy-image": METADATA["resources"]["metrics-proxy-image"]["upstream-source"],
-}
 
 
 @pytest.fixture(scope="module")

@@ -5,12 +5,12 @@
 
 import logging
 from dataclasses import asdict
-from pathlib import Path
 
 import httpx
 import pytest
-import yaml
 from helpers import (
+    APP_NAME,
+    RESOURCES,
     assert_request_returns_http_code,
     istio_k8s,
     validate_labels,
@@ -21,12 +21,6 @@ from lightkube.resources.core_v1 import Pod
 from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
-
-METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
-APP_NAME = METADATA["name"]
-RESOURCES = {
-    "metrics-proxy-image": METADATA["resources"]["metrics-proxy-image"]["upstream-source"],
-}
 
 
 @pytest.mark.abort_on_fail

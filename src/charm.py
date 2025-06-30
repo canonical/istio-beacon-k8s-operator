@@ -25,11 +25,16 @@ from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer
 from lightkube import Client
 from lightkube.core.exceptions import ApiError
 from lightkube.generic_resource import create_namespaced_resource
+from lightkube.models.autoscaling_v2 import (
+    CrossVersionObjectReference,
+    HorizontalPodAutoscalerSpec,
+)
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.apps_v1 import Deployment
+from lightkube.resources.autoscaling_v2 import HorizontalPodAutoscaler
 from lightkube.resources.core_v1 import Namespace
 from lightkube_extensions.batch import KubernetesResourceManager, create_charm_default_labels
-from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
+from ops.model import ActiveStatus, MaintenanceStatus
 from ops.pebble import ChangeError, Layer
 
 from models import (
@@ -65,7 +70,12 @@ RESOURCE_TYPES = {
 AUTHORIZATION_POLICY_LABEL = "istio-authorization-policy"
 AUTHORIZATION_POLICY_RESOURCE_TYPES = {RESOURCE_TYPES["AuthorizationPolicy"]}
 WAYPOINT_LABEL = "istio-waypoint"
-WAYPOINT_RESOURCE_TYPES = {RESOURCE_TYPES["Gateway"]}
+WAYPOINT_RESOURCE_TYPES = {
+    RESOURCE_TYPES["Gateway"],
+    HorizontalPodAutoscaler,
+}
+
+PEERS_RELATION = "peers"
 
 
 @trace_charm(
@@ -122,6 +132,9 @@ class IstioBeaconCharm(ops.CharmBase):
         self.framework.observe(self.on["service-mesh"].relation_changed, self.on_mesh_changed)
         self.framework.observe(self.on["service-mesh"].relation_broken, self.on_mesh_broken)
 
+        self.framework.observe(self.on[PEERS_RELATION].relation_changed, self._on_peers_changed)
+        self.framework.observe(self.on[PEERS_RELATION].relation_departed, self._on_peers_changed)
+
     def _setup_proxy_pebble_service(self):
         """Define and start the metrics broadcast proxy Pebble service."""
         proxy_container = self.unit.get_container("metrics-proxy")
@@ -165,8 +178,22 @@ class IstioBeaconCharm(ops.CharmBase):
         """Event handler for service-mesh relation_broken."""
         self._sync_all_resources()
 
+    def _on_peers_changed(self, _):
+        """Event handler for peer topology changes."""
+        self._sync_all_resources()
+
     def _on_remove(self, _):
-        """Event handler for remove."""
+        """Event handler for remove.
+
+        This function removes all application-scoped resources when the application-scoped resources when the application is scaled to 0 or removed. The removal of the resources will not be attempted until the last unit of the charm is removed irrespective of if the leader unit exists or not for reasons discussed [here](https://github.com/canonical/istio-ingress-k8s-operator/issues/16)
+        """
+        if self.model.app.planned_units() > 0:
+            logger.info(
+                "Application is not scaling to 0. Skipping application resource removal."
+            )
+            return
+        logger.info("Attempting to remove application resources.")
+
         self._remove_labels()
         for krm in (
             self._get_waypoint_resource_manager(),
@@ -243,8 +270,16 @@ class IstioBeaconCharm(ops.CharmBase):
         return True
 
     def _sync_all_resources(self):
+        """Reconcile all resources including gateway, horizontal pod autoscaler, and authorization policies.
+
+        This:
+        * Adds this beacon charm to the mesh by applying the required labels on the application resources
+        * Reconicles HPA and gateway resources to set the gateway replica count to be the same as the unit scale
+        * Sets up the metrics proxy service
+        * Builds and reconciles the authorization policies
+        """
         if not self.unit.is_leader():
-            self.unit.status = BlockedStatus("Waypoint can only be provided on the leader unit.")
+            self.unit.status = ActiveStatus("Backup unit; standing by for leader takeover")
             return
 
         self.unit.status = MaintenanceStatus("Updating this charm's labels to ensure it is on the mesh")
@@ -377,6 +412,30 @@ class IstioBeaconCharm(ops.CharmBase):
             spec=gateway.spec.model_dump(),
         )
 
+    def _construct_hpa(self, unit_count: int) -> HorizontalPodAutoscaler:
+        """Constructs a HorizontalPodAutoscaler resource targeting the waypoint Deployment.
+
+        This HPA is used to scale the waypoint workload automatically when the charm scales.
+        The scaling is achieved by setting the min and max replica settings in the HPA to be the same as the unit count.
+        It is important to note that the HPA must target the waypoint's Deployment and not Gateway.
+        """
+        return HorizontalPodAutoscaler(
+            metadata=ObjectMeta(
+                # Identify it by the same name as the waypoint itself
+                name=self._waypoint_name,
+                namespace=self.model.name,
+            ),
+            spec=HorizontalPodAutoscalerSpec(
+                scaleTargetRef=CrossVersionObjectReference(
+                    apiVersion="apps/v1",
+                    kind="Deployment",
+                    name=self._waypoint_name,
+                ),
+                minReplicas=unit_count,
+                maxReplicas=unit_count,
+            ),
+        )
+
     def _sync_authorization_policies(self):
         """Sync authorization policies."""
         mesh_policies = self._collect_mesh_policies()
@@ -397,10 +456,30 @@ class IstioBeaconCharm(ops.CharmBase):
         krm.reconcile(authorization_policies)  # type: ignore
 
     def _sync_waypoint_resources(self):
-        resources_list = []
+        """Reconcile all application resources for waypoint.
+
+        This method attempts to construct and reconcile
+        * The Gateway resource
+        * The HorizontalPodAutoscaler resource
+        for the waypoint Deployment.
+        """
         krm = self._get_waypoint_resource_manager()
-        resource_to_append = self._construct_waypoint()
-        resources_list.append(resource_to_append)
+        unit_count = self.model.app.planned_units()
+        resources_list = []
+
+        # Reconcile an empty resource list if no units are left (unit_count < 1):
+        #  - This typically indicates an application removal event; we rely on the remove hook for cleanup.
+        #  - Attempting to reconcile with an HPA that sets replicas to zero is invalid.
+        #  - This guard exists because some events can call _sync_all_resources before the remove hook runs,
+        #    leading to k8s validation webhook errors when planned_units is 0.
+        if unit_count > 0:
+            resources_list.extend(
+                [
+                    self._construct_waypoint(),
+                    self._construct_hpa(unit_count),
+
+                ]
+            )
         krm.reconcile(resources_list)
 
         if self.config["model-on-mesh"]:

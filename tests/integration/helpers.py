@@ -5,11 +5,14 @@
 
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional
 
 import sh
+import yaml
 from lightkube.core.client import Client
 from lightkube.generic_resource import create_namespaced_resource
+from lightkube.resources.autoscaling_v2 import HorizontalPodAutoscaler
 from lightkube.resources.core_v1 import Namespace
 from pytest_operator.plugin import OpsTest
 from tenacity import (
@@ -19,6 +22,16 @@ from tenacity import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
+APP_NAME = METADATA["name"]
+SENDER = "sender"
+RECEIVER = "receiver"
+RESOURCES = {
+    "metrics-proxy-image": METADATA["resources"]["metrics-proxy-image"]["upstream-source"],
+}
+
 
 
 @dataclass
@@ -38,6 +51,24 @@ istio_k8s = CharmDeploymentConfiguration(
 AuthPolicy = create_namespaced_resource(
     "security.istio.io", "v1", "AuthorizationPolicy", "authorizationpolicies"
 )
+
+
+async def get_hpa(namespace: str, hpa_name: str) -> Optional[HorizontalPodAutoscaler]:
+    """Retrieve the HPA resource so we can inspect .spec and .status directly.
+
+    Args:
+        namespace: Namespace of the HPA resource.
+        hpa_name: Name of the HPA resource.
+
+    Returns:
+        The HorizontalPodAutoscaler object or None if not found / on error.
+    """
+    try:
+        c = Client()
+        return c.get(HorizontalPodAutoscaler, namespace=namespace, name=hpa_name)
+    except Exception as e:
+        logger.error("Error retrieving HPA %s: %s", hpa_name, e, exc_info=True)
+        return None
 
 
 async def validate_labels(ops_test: OpsTest, app_name: str, should_be_present: bool):
