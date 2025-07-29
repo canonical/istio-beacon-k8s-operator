@@ -15,6 +15,7 @@ import pydantic
 from charmed_service_mesh_helpers import charm_kubernetes_label
 from charms.istio_beacon_k8s.v0.service_mesh import (
     MeshPolicy,
+    PolicyTargetType,
     ServiceMeshProvider,
     label_configmap_name_template,
     reconcile_charm_labels,
@@ -319,54 +320,87 @@ class IstioBeaconCharm(ops.CharmBase):
                     f"Defaulting to application name '{target_service}'."
                 )
 
-            authorization_policies[i] = RESOURCE_TYPES["AuthorizationPolicy"](  # type: ignore
-                metadata=ObjectMeta(
-                    name=self._generate_authorization_policy_name(policy),
-                    # FIXME: This should be the namespace of the target app, not the beacon
-                    namespace=self.model.name,
-                ),
-                spec=AuthorizationPolicySpec(
-                    targetRefs=[
-                        PolicyTargetReference(
-                            kind="Service",
-                            group="",
-                            name=target_service,
-                        )
-                    ],
-                    rules=[
-                        Rule(
-                            from_=[  # type: ignore # this is accessible via an alias
-                                From(
-                                    source=Source(
-                                        principals=[
-                                            _get_peer_identity_for_juju_application(
-                                                policy.source_app_name, policy.source_namespace
-                                            )
-                                        ]
+            # L4 policy created for target Juju units (workloads)
+            if policy.target_type == PolicyTargetType.unit:
+                authorization_policies[i] = RESOURCE_TYPES["AuthorizationPolicy"](  # type: ignore
+                    metadata=ObjectMeta(
+                        name=self._generate_authorization_policy_name(policy),
+                        # FIXME: This should be the namespace of the target app, not the beacon
+                        namespace=self.model.name,
+                    ),
+                    spec=AuthorizationPolicySpec(
+                        selector=WorkloadSelector(
+                            matchLabels={
+                                "app.kubernetes.io/name": policy.target_app_name,
+                            }
+                        ),
+                        rules=[
+                            Rule(
+                                from_=[  # type: ignore # this is accessible via an alias
+                                    From(
+                                        source=Source(
+                                            principals=[
+                                                _get_peer_identity_for_juju_application(
+                                                    policy.source_app_name, policy.source_namespace
+                                                )
+                                            ]
+                                        )
                                     )
-                                )
-                            ],
-                            to=[
-                                To(
-                                    operation=Operation(
-                                        # TODO: Make these ports strings instead of ints in endpoint?
-                                        ports=[str(p) for p in endpoint.ports]
-                                        if endpoint.ports
-                                        else [],
-                                        hosts=endpoint.hosts,
-                                        methods=endpoint.methods,
-                                        paths=endpoint.paths,
+                                ],
+                            ),
+                        ],
+                    ).model_dump(by_alias=True, exclude_unset=True, exclude_none=True),
+                )
+            # L7 policy created for target Juju applications (services)
+            else:
+                authorization_policies[i] = RESOURCE_TYPES["AuthorizationPolicy"](  # type: ignore
+                    metadata=ObjectMeta(
+                        name=self._generate_authorization_policy_name(policy),
+                        # FIXME: This should be the namespace of the target app, not the beacon
+                        namespace=self.model.name,
+                    ),
+                    spec=AuthorizationPolicySpec(
+                        targetRefs=[
+                            PolicyTargetReference(
+                                kind="Service",
+                                group="",
+                                name=target_service,
+                            )
+                        ],
+                        rules=[
+                            Rule(
+                                from_=[  # type: ignore # this is accessible via an alias
+                                    From(
+                                        source=Source(
+                                            principals=[
+                                                _get_peer_identity_for_juju_application(
+                                                    policy.source_app_name, policy.source_namespace
+                                                )
+                                            ]
+                                        )
                                     )
-                                )
-                                for endpoint in policy.endpoints
-                            ],
-                        )
-                    ],
-                    # by_alias=True because the model includes an alias for the `from` field
-                    # exclude_unset=True because unset fields will be treated as their default values in Kubernetes
-                    # exclude_none=True because null values in this data always mean the Kubernetes default
-                ).model_dump(by_alias=True, exclude_unset=True, exclude_none=True),
-            )
+                                ],
+                                to=[
+                                    To(
+                                        operation=Operation(
+                                            # TODO: Make these ports strings instead of ints in endpoint?
+                                            ports=[str(p) for p in endpoint.ports]
+                                            if endpoint.ports
+                                            else [],
+                                            hosts=endpoint.hosts,
+                                            methods=endpoint.methods,
+                                            paths=endpoint.paths,
+                                        )
+                                    )
+                                    for endpoint in policy.endpoints
+                                ],
+                            )
+                        ],
+                        # by_alias=True because the model includes an alias for the `from` field
+                        # exclude_unset=True because unset fields will be treated as their default values in Kubernetes
+                        # exclude_none=True because null values in this data always mean the Kubernetes default
+                    ).model_dump(by_alias=True, exclude_unset=True, exclude_none=True),
+                )
 
         # We need to allow the juju controller to be able to talk to the model operator
         if self.config["model-on-mesh"]:
@@ -392,7 +426,7 @@ class IstioBeaconCharm(ops.CharmBase):
             metadata=Metadata(
                 name=self._waypoint_name,
                 namespace=self.model.name,
-                labels={"istio.io/waypoint-for": "all", **self._telemetry_labels},
+                labels={"istio.io/waypoint-for": "service", **self._telemetry_labels},
             ),
             spec=IstioWaypointSpec(
                 gatewayClassName="istio-waypoint",
