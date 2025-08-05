@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 import scenario
-from charms.istio_beacon_k8s.v0.service_mesh import Endpoint, MeshPolicy
+from charms.istio_beacon_k8s.v0.service_mesh import Endpoint, MeshPolicy, PolicyTargetType
 
 
 @pytest.fixture()
@@ -22,6 +22,7 @@ def service_mesh_relation():
                         target_app_name="target-app1",
                         target_namespace="target-namespace1",
                         target_service="my-service1",
+                        target_type=PolicyTargetType.app,
                         endpoints=[
                             Endpoint(
                                 hosts=["host1"],
@@ -37,6 +38,7 @@ def service_mesh_relation():
                         target_app_name="target-app2",
                         target_namespace="target-namespace2",
                         # target_service="my-service2",  # omit, which should get the default of target app name
+                        target_type=PolicyTargetType.app,
                         endpoints=[
                             Endpoint(
                                 hosts=["host2"],
@@ -75,6 +77,7 @@ def test_get_authorization_policies_from_related_apps(
                     source_namespace="source-namespace0",
                     target_app_name="target-app0",
                     target_namespace="target-namespace0",
+                    target_type=PolicyTargetType.app,
                     endpoints=[
                         Endpoint(
                             hosts=["host0"],
@@ -90,6 +93,7 @@ def test_get_authorization_policies_from_related_apps(
                     target_app_name="target-app1",
                     target_namespace="target-namespace1",
                     target_service="my-service1",
+                    target_type=PolicyTargetType.app,
                     endpoints=[
                         Endpoint(
                             hosts=["host1"],

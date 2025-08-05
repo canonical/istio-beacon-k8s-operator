@@ -10,7 +10,7 @@ from lightkube.resources.core_v1 import Namespace
 from ops.testing import Harness
 
 from charm import IstioBeaconCharm
-from lib.charms.istio_beacon_k8s.v0.service_mesh import Endpoint, MeshPolicy
+from lib.charms.istio_beacon_k8s.v0.service_mesh import Endpoint, MeshPolicy, PolicyTargetType
 
 
 @pytest.fixture()
@@ -247,13 +247,14 @@ def test_sync_waypoint_resources_remove_labels(harness: Harness[IstioBeaconCharm
                 target_app_name="targetApp",
                 target_namespace="targetNamespace",
                 target_service=None,
+                target_type=PolicyTargetType.app,
                 endpoints=[
                     Endpoint(hosts=["host1"], ports=[80], methods=["GET"], paths=["/path1"])  # type: ignore
                 ],
             ),
             # Note: if this test fails because the hash has changed, that means upgrading from a previous version to
             # this one will result in a delete/recreate of all policies.  Decide if that is acceptable.
-            "beaconApp-beaconNamespace-policy-senderApp-senderNamespace-targetApp-65994572",
+            "beaconApp-beaconNamespace-policy-senderApp-senderNamespace-targetApp-994417d1",
         ),
         # case with target service, multiple endpoints
         (
@@ -265,6 +266,7 @@ def test_sync_waypoint_resources_remove_labels(harness: Harness[IstioBeaconCharm
                 target_app_name="targetApp",
                 target_namespace="targetNamespace",
                 target_service="my-service",
+                target_type=PolicyTargetType.app,
                 endpoints=[
                     Endpoint(hosts=["host1"], ports=[80], methods=["GET"], paths=["/path1"]),  # type: ignore
                     Endpoint(hosts=["host2"], ports=[80], methods=["GET"], paths=["/path1"]),  # type: ignore
@@ -272,7 +274,7 @@ def test_sync_waypoint_resources_remove_labels(harness: Harness[IstioBeaconCharm
             ),
             # Note: if this test fails because the hash has changed, that means upgrading from a previous version to
             # this one will result in a delete/recreate of all policies.  Decide if that is acceptable.
-            "beaconApp-beaconNamespace-policy-senderApp-senderNamespace-targetApp-434ce4ee",
+            "beaconApp-beaconNamespace-policy-senderApp-senderNamespace-targetApp-2840f76e",
         ),
         # case with truncation
         (
@@ -284,6 +286,7 @@ def test_sync_waypoint_resources_remove_labels(harness: Harness[IstioBeaconCharm
                 target_app_name="targetApp012345678901234567890123456789012345678901234567890123",
                 target_namespace="targetNamespace678901234567890123456789012345678901234567890123",
                 target_service="my-service",
+                target_type=PolicyTargetType.app,
                 endpoints=[
                     Endpoint(hosts=["host1"], ports=[80], methods=["GET"], paths=["/path1"]),  # type: ignore
                     Endpoint(hosts=["host2"], ports=[80], methods=["GET"], paths=["/path1"]),  # type: ignore
@@ -291,7 +294,7 @@ def test_sync_waypoint_resources_remove_labels(harness: Harness[IstioBeaconCharm
             ),
             # Note: if this test fails because the hash has changed, that means upgrading from a previous version to
             # this one will result in a delete/recreate of all policies.  Decide if that is acceptable.
-            "beaconApp012345678901234567890123456789012345678901234567890123-beaconNamespace678901234567890123456789012345678901234567890123-policy-senderApp012345678901234567890-senderNamespace678901234567890-targetApp012345678901234567890-506b5a7c",
+            "beaconApp012345678901234567890123456789012345678901234567890123-beaconNamespace678901234567890123456789012345678901234567890123-policy-senderApp012345678901234567890-senderNamespace678901234567890-targetApp012345678901234567890-ff03bbae",
         ),
     ],
 )

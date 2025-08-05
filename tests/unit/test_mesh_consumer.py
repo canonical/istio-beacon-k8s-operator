@@ -8,15 +8,17 @@ from unittest.mock import MagicMock, patch
 import pytest
 import scenario
 from charms.istio_beacon_k8s.v0.service_mesh import (
+    AppPolicy,
     Endpoint,
     Policy,
     ServiceMeshConsumer,
+    UnitPolicy,
     reconcile_charm_labels,
 )
 from ops import CharmBase
 
 
-def consumer_context(policies: typing.List[Policy]) -> scenario.Context:
+def consumer_context(policies: typing.List[typing.Union[Policy, AppPolicy, UnitPolicy]]) -> scenario.Context:
     meta = {
         "name": "consumer-charm",
         "requires": {
@@ -44,7 +46,7 @@ ENDPOINT_A = Endpoint(hosts=[], ports=[80], methods=[], paths=[])
 
 WITH_COMPLEX_ENDPOINTS = (
     [
-        Policy(
+        AppPolicy(
             relation="rela",
             endpoints=[
                 Endpoint(
@@ -70,6 +72,7 @@ WITH_COMPLEX_ENDPOINTS = (
             "target_app_name": "consumer-charm",
             "target_namespace": "my_model",
             "target_service": None,
+            "target_type": "app",
             "endpoints": [
                 {
                     "hosts": ["localhost"],
@@ -90,8 +93,8 @@ WITH_COMPLEX_ENDPOINTS = (
 
 MULTIPLE_POLICIES = (
     [
-        Policy(relation="rela", endpoints=[ENDPOINT_A], service=None),
-        Policy(relation="relc", endpoints=[ENDPOINT_A], service=None),
+        AppPolicy(relation="rela", endpoints=[ENDPOINT_A], service=None),
+        AppPolicy(relation="relc", endpoints=[ENDPOINT_A], service=None),
     ],
     [
         {
@@ -100,6 +103,7 @@ MULTIPLE_POLICIES = (
             "target_app_name": "consumer-charm",
             "target_namespace": "my_model",
             "target_service": None,
+            "target_type": "app",
             "endpoints": [{"hosts": [], "ports": [80], "methods": [], "paths": []}],
         },
         {
@@ -108,12 +112,74 @@ MULTIPLE_POLICIES = (
             "target_app_name": "consumer-charm",
             "target_namespace": "my_model",
             "target_service": None,
+            "target_type": "app",
             "endpoints": [{"hosts": [], "ports": [80], "methods": [], "paths": []}],
         },
     ],
 )
 
 REQUIRER = (
+    [AppPolicy(relation="rela", endpoints=[ENDPOINT_A], service=None)],
+    [
+        {
+            "source_app_name": "remote_a",
+            "source_namespace": "my_model",
+            "target_app_name": "consumer-charm",
+            "target_namespace": "my_model",
+            "target_service": None,
+            "target_type": "app",
+            "endpoints": [{"hosts": [], "ports": [80], "methods": [], "paths": []}],
+        }
+    ],
+)
+
+REQUIRER_CMR = (
+    [AppPolicy(relation="relb", endpoints=[ENDPOINT_A], service=None)],
+    [
+        {
+            "source_app_name": "remote_b",
+            "source_namespace": "remote_model",
+            "target_app_name": "consumer-charm",
+            "target_namespace": "my_model",
+            "target_service": None,
+            "target_type": "app",
+            "endpoints": [{"hosts": [], "ports": [80], "methods": [], "paths": []}],
+        }
+    ],
+)
+
+PROVIDER = (
+    [AppPolicy(relation="relc", endpoints=[ENDPOINT_A], service=None)],
+    [
+        {
+            "source_app_name": "remote_c",
+            "source_namespace": "my_model",
+            "target_app_name": "consumer-charm",
+            "target_namespace": "my_model",
+            "target_service": None,
+            "target_type": "app",
+            "endpoints": [{"hosts": [], "ports": [80], "methods": [], "paths": []}],
+        }
+    ],
+)
+
+PROVIDER_CMR = (
+    [AppPolicy(relation="reld", endpoints=[ENDPOINT_A], service=None)],
+    [
+        {
+            "source_app_name": "remote_d",
+            "source_namespace": "remote_model",
+            "target_app_name": "consumer-charm",
+            "target_namespace": "my_model",
+            "target_service": None,
+            "target_type": "app",
+            "endpoints": [{"hosts": [], "ports": [80], "methods": [], "paths": []}],
+        }
+    ],
+)
+
+# Test case for deprecated Policy class (should work like AppPolicy)
+POLICY_DEPRECATED = (
     [Policy(relation="rela", endpoints=[ENDPOINT_A], service=None)],
     [
         {
@@ -122,49 +188,23 @@ REQUIRER = (
             "target_app_name": "consumer-charm",
             "target_namespace": "my_model",
             "target_service": None,
+            "target_type": "app",
             "endpoints": [{"hosts": [], "ports": [80], "methods": [], "paths": []}],
         }
     ],
 )
 
-REQUIRER_CMR = (
-    [Policy(relation="relb", endpoints=[ENDPOINT_A], service=None)],
+UNIT_POLICY = (
+    [UnitPolicy(relation="rela")],
     [
         {
-            "source_app_name": "remote_b",
-            "source_namespace": "remote_model",
-            "target_app_name": "consumer-charm",
-            "target_namespace": "my_model",
-            "target_service": None,
-            "endpoints": [{"hosts": [], "ports": [80], "methods": [], "paths": []}],
-        }
-    ],
-)
-
-PROVIDER = (
-    [Policy(relation="relc", endpoints=[ENDPOINT_A], service=None)],
-    [
-        {
-            "source_app_name": "remote_c",
+            "source_app_name": "remote_a",
             "source_namespace": "my_model",
             "target_app_name": "consumer-charm",
             "target_namespace": "my_model",
             "target_service": None,
-            "endpoints": [{"hosts": [], "ports": [80], "methods": [], "paths": []}],
-        }
-    ],
-)
-
-PROVIDER_CMR = (
-    [Policy(relation="reld", endpoints=[ENDPOINT_A], service=None)],
-    [
-        {
-            "source_app_name": "remote_d",
-            "source_namespace": "remote_model",
-            "target_app_name": "consumer-charm",
-            "target_namespace": "my_model",
-            "target_service": None,
-            "endpoints": [{"hosts": [], "ports": [80], "methods": [], "paths": []}],
+            "target_type": "unit",
+            "endpoints": [],
         }
     ],
 )
@@ -176,6 +216,8 @@ POLICY_DATA_PARAMS = [
     REQUIRER_CMR,
     PROVIDER,
     PROVIDER_CMR,
+    POLICY_DEPRECATED,
+    UNIT_POLICY,
 ]
 
 
@@ -236,6 +278,25 @@ def test_relation_data_policies(policies, expected_data):
     assert (
         json.loads(out.get_relation(mesh_relation.id).local_app_data["policies"]) == expected_data
     )
+
+
+def test_policy_deprecation_warning():
+    """Test that using the deprecated Policy class generates the deprecation warning."""
+    import warnings
+
+    with warnings.catch_warnings(record=True) as warning_list:
+        warnings.simplefilter("always")  # Ensure all warnings are captured
+
+        Policy(relation="test-relation", endpoints=[ENDPOINT_A])
+        assert len(warning_list) == 1
+        assert issubclass(warning_list[0].category, DeprecationWarning)
+
+        expected_msg = (
+            "Policy is deprecated. Use AppPolicy for fine-grained application-level policies "
+            "or UnitPolicy to allow access to charm units. For migration, Policy can be "
+            "directly replaced with AppPolicy."
+        )
+        assert str(warning_list[0].message) == expected_msg
 
 
 def lightkube_client_mock(unmanaged_labels: dict, managed_labels: dict) -> MagicMock:
