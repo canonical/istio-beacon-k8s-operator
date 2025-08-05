@@ -24,6 +24,8 @@ config:
 provides:
   inbound:
     interface: service
+  inbound-unit:
+    interface: service
   provide-cmr-mesh:
     interface: cross_model_mesh
 

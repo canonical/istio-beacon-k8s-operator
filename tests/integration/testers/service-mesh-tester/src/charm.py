@@ -3,7 +3,7 @@
 # See LICENSE file for licensing details.
 import logging
 
-from charms.istio_beacon_k8s.v0.service_mesh import Endpoint, Policy, ServiceMeshConsumer
+from charms.istio_beacon_k8s.v0.service_mesh import Endpoint, AppPolicy, UnitPolicy, ServiceMeshConsumer
 from ops.charm import CharmBase
 from ops.main import main
 from ops.model import ActiveStatus
@@ -21,7 +21,7 @@ class ServiceMeshTester(CharmBase):
         self._mesh = ServiceMeshConsumer(
             self,
             policies=[
-                Policy(
+                AppPolicy(
                     relation="inbound",
                     endpoints=[
                         Endpoint(
@@ -30,6 +30,9 @@ class ServiceMeshTester(CharmBase):
                             paths=["/foo", "/bar/"],
                         ),
                     ],
+                ),
+                UnitPolicy(
+                    relation="inbound-unit"
                 ),
             ],
             auto_join=bool(self.config["auto-join-mesh"]),
