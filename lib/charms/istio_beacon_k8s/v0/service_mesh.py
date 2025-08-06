@@ -50,7 +50,7 @@ provides:
 Instantiate a ServiceMeshConsumer object in your charm's `__init__` method:
 
 ```python
-from charms.istio_beacon_k8s.v0.service_mesh import Method, Endpoint, Policy, ServiceMeshConsumer
+from charms.istio_beacon_k8s.v0.service_mesh import Method, Endpoint, AppPolicy, UnitPolicy, ServiceMeshConsumer
 
 class MyCharm(CharmBase):
     def __init__(self, *args):
@@ -58,17 +58,10 @@ class MyCharm(CharmBase):
         self._mesh = ServiceMeshConsumer(
             self,
             policies=[
-                Policy(
+                UnitPolicy(
                     relation="metrics",
-                    endpoints=[
-                        Endpoint(
-                            ports=[HTTP_LISTEN_PORT],
-                            methods=[Method.get],
-                            paths=["/metrics"],
-                        ),
-                    ],
                 ),
-                Policy(
+                AppPolicy(
                     relation="data",
                     endpoints=[
                         Endpoint(
@@ -83,8 +76,11 @@ class MyCharm(CharmBase):
 ```
 
 This example creates two policies:
-- When related over the `metrics` relation allow the related application to `GET` this application's `/metrics` endpoint on the specified port
-- When related over the `data` relation allow the relation application to `GET` this application's `/data` endpoint on the specified port
+- An unit policy - When related over the `metrics` relation allow the related application to access the units (via the unit/workload ip or FQDN) of this application without any restriction.
+- An app policy - When related over the `data` relation allow the relation application to `GET` this application's `/data` endpoint on the specified port (via the app/service ip or FQDN)
+
+An UnitPolicy creates a less restrictive policy that allows complete access but only to the units of the charm via individual unit addresses.
+An AppPolicy created a more fine-grained policy that can be used to control how the source application can communicate with the target application via the app address.
 
 ### Cross-Model Relations
 To request service mesh policies for cross-model relations, additional information is required.
@@ -139,7 +135,8 @@ for policy in self._mesh.mesh_info():
 
 - **Method**: Defines enum for HTTP methods (GET, POST, PUT, etc.)
 - **Endpoint**: Defines traffic endpoints with hosts, ports, methods, and paths
-- **Policy**: Defines authorization policy for the consumer
+- **AppPolicy**: Defines application level authorization policy for the consumer
+- **UnitPolicy**: Defines unit level authorization policy for the consumer
 - **MeshPolicy**: Contains complete policy information for mesh configuration
 - **CMRData**: Contains cross-model relation metadata
 """
