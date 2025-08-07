@@ -195,7 +195,7 @@ POLICY_DEPRECATED = (
 )
 
 UNIT_POLICY = (
-    [UnitPolicy(relation="rela")],
+    [UnitPolicy(relation="rela", ports=[8080])],
     [
         {
             "source_app_name": "remote_a",
@@ -204,7 +204,7 @@ UNIT_POLICY = (
             "target_namespace": "my_model",
             "target_service": None,
             "target_type": "unit",
-            "endpoints": [],
+            "endpoints": [{"hosts": None, "ports": [8080], "methods": None, "paths": None}],
         }
     ],
 )

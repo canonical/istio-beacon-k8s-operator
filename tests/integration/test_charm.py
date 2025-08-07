@@ -159,8 +159,6 @@ async def test_service_mesh_relation(ops_test: OpsTest, model_on_mesh):
     await ops_test.model.applications["receiver1"].set_config({"auto-join-mesh": str(not model_on_mesh).lower()})
     await ops_test.model.applications["sender1"].set_config({"auto-join-mesh": str(not model_on_mesh).lower()})
     await ops_test.model.applications["sender2"].set_config({"auto-join-mesh": str(not model_on_mesh).lower()})
-    # Do not set auto-join for sender3, as it is not part of the mesh anyway
-    # await ops_test.model.applications["sender2"].set_config({"auto-join-mesh": str(not model_on_mesh).lower()})
     await ops_test.model.wait_for_idle(
         [
             APP_NAME,
@@ -241,6 +239,14 @@ async def test_service_mesh_relation(ops_test: OpsTest, model_on_mesh):
         method="delete",
         code=200,
     )
+    assert_request_returns_http_code(
+        ops_test.model.name,
+        "sender2/0",
+        f"http://receiver1-0.receiver1-endpoints.{ops_test.model.name}.svc.cluster.local:8083/foo",
+        method="delete",
+        code=1,
+    )
+
 
     # other service accounts should get a 403 error if model on mesh else should raise an exit code 1 as connection will be refused
     assert_request_returns_http_code(
