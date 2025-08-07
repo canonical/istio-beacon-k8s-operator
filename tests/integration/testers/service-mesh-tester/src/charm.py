@@ -37,7 +37,8 @@ class ServiceMeshTester(CharmBase):
                     ],
                 ),
                 UnitPolicy(
-                    relation="inbound-unit"
+                    relation="inbound-unit",
+                    ports=self._ports,
                 ),
             ],
             auto_join=bool(self.config["auto-join-mesh"]),
