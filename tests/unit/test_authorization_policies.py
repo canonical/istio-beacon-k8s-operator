@@ -109,7 +109,7 @@ def test_get_authorization_policies_from_related_apps(
     ]
 )
 @pytest.mark.disable_lightkube_client_autouse
-def test_build_authorization_policies(
+def test_build_authorization_policies_app(
     istio_beacon_charm, istio_beacon_context, mesh_policies, expected
 ):
     model_name = "my-model"
@@ -131,6 +131,76 @@ def test_build_authorization_policies(
                 assert authorization_policies[i_mesh_policy]["spec"]["rules"][0]["to"][i_endpoint]["operation"]["ports"] == [str(p) for p in endpoint.ports]
                 assert authorization_policies[i_mesh_policy]["spec"]["rules"][0]["to"][i_endpoint]["operation"]["methods"] == endpoint.methods
                 assert authorization_policies[i_mesh_policy]["spec"]["rules"][0]["to"][i_endpoint]["operation"]["paths"] == endpoint.paths
+
+
+@pytest.mark.parametrize(
+    "mesh_policies,expected",
+    [
+        (
+            (
+                MeshPolicy(
+                    source_app_name="source-app0",
+                    source_namespace="source-namespace0",
+                    target_app_name="target-app0",
+                    target_namespace="target-namespace0",
+                    target_type=PolicyTargetType.unit,
+                    endpoints=[
+                        Endpoint(
+                            hosts=None,
+                            ports=[80],
+                            methods=None,  # type: ignore
+                            paths=None,
+                        )
+                    ],
+                ),
+                MeshPolicy(
+                    source_app_name="source-app1",
+                    source_namespace="source-namespace1",
+                    target_app_name="target-app1",
+                    target_namespace="target-namespace1",
+                    target_type=PolicyTargetType.unit,
+                    endpoints=[
+                        Endpoint(
+                            hosts=["host1"],
+                            ports=[80],
+                            methods=["GET"],  # type: ignore
+                            paths=["/path1"],
+                        )
+                    ],
+                ),
+            ),
+            "expected",
+        )
+    ]
+)
+@pytest.mark.disable_lightkube_client_autouse
+def test_build_authorization_policies_unit(
+    istio_beacon_charm, istio_beacon_context, mesh_policies, expected
+):
+    model_name = "my-model"
+    with istio_beacon_context(
+        istio_beacon_context.on.update_status(),
+        state=scenario.State(
+            model=scenario.Model(name=model_name)
+        ),
+    ) as manager:
+        charm: istio_beacon_charm = manager.charm  # type: ignore
+        authorization_policies = charm._build_authorization_policies(mesh_policies)
+
+        # check if invalid authorization policies are not created
+        assert authorization_policies[1] is None
+
+        # Spot check the outputs
+        for i_mesh_policy, mesh_policy in enumerate(mesh_policies):
+            if authorization_policies[i_mesh_policy] is not None:
+                assert authorization_policies[i_mesh_policy]["metadata"].namespace == model_name
+                assert authorization_policies[i_mesh_policy]["spec"]["selector"]["matchLabels"] == {"app.kubernetes.io/name": mesh_policy.target_app_name}
+                for i_endpoint, endpoint in enumerate(mesh_policy.endpoints):
+                    operation = authorization_policies[i_mesh_policy]["spec"]["rules"][0]["to"][i_endpoint]["operation"]
+                    forbidden_attributes = ["hosts", "paths", "methods"]  # L7 attributes are forbidden in UnitPolicy
+                    existing_forbidden = [key for key in forbidden_attributes if key in operation]
+                    assert not existing_forbidden, f"Expected attributes {forbidden_attributes} to not exist, but found: {existing_forbidden}"
+                    assert operation["ports"] == [str(p) for p in endpoint.ports]
 
 
 @pytest.mark.parametrize("create_authorization_policies", [True, False])
