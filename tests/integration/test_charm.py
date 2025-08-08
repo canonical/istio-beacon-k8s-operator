@@ -116,16 +116,25 @@ async def test_deploy_service_mesh_apps(ops_test: OpsTest, service_mesh_tester):
         resources=resources,
         trust=True,
     )
+    await ops_test.model.deploy(
+        service_mesh_tester,
+        application_name="sender3",
+        resources=resources,
+        trust=True,
+    )
 
     await ops_test.model.add_relation("receiver1:service-mesh", APP_NAME)
     await ops_test.model.add_relation("sender1:service-mesh", APP_NAME)
+    await ops_test.model.add_relation("sender2:service-mesh", APP_NAME)
     await ops_test.model.add_relation("receiver1:inbound", "sender1:outbound")
+    await ops_test.model.add_relation("receiver1:inbound-unit", "sender2:outbound")
     await ops_test.model.wait_for_idle(
         [
             APP_NAME,
             "receiver1",
             "sender1",
             "sender2",
+            "sender3"
         ],
         raise_on_error=False,
     )
@@ -149,24 +158,24 @@ async def test_service_mesh_relation(ops_test: OpsTest, model_on_mesh):
     # configure auto-join for the apps based on model_on_mesh
     await ops_test.model.applications["receiver1"].set_config({"auto-join-mesh": str(not model_on_mesh).lower()})
     await ops_test.model.applications["sender1"].set_config({"auto-join-mesh": str(not model_on_mesh).lower()})
-    # Do not set auto-join for sender2, as it is not part of the mesh anyway
-    # await ops_test.model.applications["sender2"].set_config({"auto-join-mesh": str(not model_on_mesh).lower()})
+    await ops_test.model.applications["sender2"].set_config({"auto-join-mesh": str(not model_on_mesh).lower()})
     await ops_test.model.wait_for_idle(
         [
             APP_NAME,
             "receiver1",
             "sender1",
             "sender2",
+            "sender3",
         ],
         raise_on_error=False,
     )
 
-    # Assert that communication is correctly controlled
-    # sender/0 can talk to receiver on any combination of:
+    # Assert that communication is correctly controlled via AppPolicy
+    # sender1/0 can talk to receiver service on any combination of:
     # * port: [8080, 8081]
     # * path: [/foo, /bar/]
     # * method: [GET, POST]
-    # but not others
+    # but not the receiver workload or others
     assert_request_returns_http_code(
         ops_test.model.name,
         "sender1/0",
@@ -199,14 +208,60 @@ async def test_service_mesh_relation(ops_test: OpsTest, model_on_mesh):
         method="delete",
         code=403,
     )
+    assert_request_returns_http_code(
+        ops_test.model.name,
+        "sender1/0",
+        f"http://receiver1-0.receiver1-endpoints.{ops_test.model.name}.svc.cluster.local:8080/foo",
+        code=1, # connection to the workload will be refused
+    )
 
-    # other service accounts should get a 403 error if model on mesh else should raise an exit code 1 as connection will be refused
+    # Assert that communication is correctly controlled via UnitPolicy
+    # sender2/0 can talk to receiver workload on any route and any method.
+    # but not to the receiver service or others
+    # Connection to the service is not denied by default in the current istio-beacon design. It is denied here
+    # because of the existence of AppPolicy above.
     assert_request_returns_http_code(
         ops_test.model.name,
         "sender2/0",
         "http://receiver1:8080/foo",
+        code=403,
+    )
+    assert_request_returns_http_code(
+        ops_test.model.name,
+        "sender2/0",
+        f"http://receiver1-0.receiver1-endpoints.{ops_test.model.name}.svc.cluster.local:8080/foo",
+        code=200,
+    )
+    assert_request_returns_http_code(
+        ops_test.model.name,
+        "sender2/0",
+        f"http://receiver1-0.receiver1-endpoints.{ops_test.model.name}.svc.cluster.local:8080/foo",
+        method="delete",
+        code=200,
+    )
+    assert_request_returns_http_code(
+        ops_test.model.name,
+        "sender2/0",
+        f"http://receiver1-0.receiver1-endpoints.{ops_test.model.name}.svc.cluster.local:8083/foo",
+        method="delete",
+        code=1,
+    )
+
+
+    # other service accounts should get a 403 error if model on mesh else should raise an exit code 1 as connection will be refused
+    assert_request_returns_http_code(
+        ops_test.model.name,
+        "sender3/0",
+        "http://receiver1:8080/foo",
         code=403 if model_on_mesh else 1,
     )
+    assert_request_returns_http_code(
+        ops_test.model.name,
+        "sender3/0",
+        f"http://receiver1-0.receiver1-endpoints.{ops_test.model.name}.svc.cluster.local:8080/foo",
+        code=1, # connection to the workload will be refused
+    )
+
 
 
 @pytest.mark.abort_on_fail
