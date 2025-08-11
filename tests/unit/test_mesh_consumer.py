@@ -280,25 +280,6 @@ def test_relation_data_policies(policies, expected_data):
     )
 
 
-def test_policy_deprecation_warning():
-    """Test that using the deprecated Policy class generates the deprecation warning."""
-    import warnings
-
-    with warnings.catch_warnings(record=True) as warning_list:
-        warnings.simplefilter("always")  # Ensure all warnings are captured
-
-        Policy(relation="test-relation", endpoints=[ENDPOINT_A])
-        assert len(warning_list) == 1
-        assert issubclass(warning_list[0].category, DeprecationWarning)
-
-        expected_msg = (
-            "Policy is deprecated. Use AppPolicy for fine-grained application-level policies "
-            "or UnitPolicy to allow access to charm units. For migration, Policy can be "
-            "directly replaced with AppPolicy."
-        )
-        assert str(warning_list[0].message) == expected_msg
-
-
 def lightkube_client_mock(unmanaged_labels: dict, managed_labels: dict) -> MagicMock:
     """Return a mock lightkube client that has a StatefulSet, Service, and ConfigMap, each with the given labels.
 

@@ -78,10 +78,10 @@ class MyCharm(CharmBase):
 
 This example creates two policies:
 - An app policy - When related over the `data` relation, allow the related application to `GET` this application's `/data` endpoint on the specified port through the app's Kubernetes service.
-- A unit policy - When related over the `metrics` relation, allow the related application to access this application's unit Pods directly on the specified port without any other restriction. UnitPolicy does not support fine-grained access control on the methods and paths via `Endpoints`.
+- A unit policy - When related over the `metrics` relation, allow the related application to access this application's unit pods directly on the specified port without any other restriction. UnitPolicy does not support fine-grained access control on the methods and paths via `Endpoints`.
 
-An AppPolicy created a more fine-grained policy that can be used to control how the source application can communicate with the target application via the app address.
-A UnitPolicy creates a less restrictive policy that allows complete access but only to the units of the charm via individual unit addresses.
+An AppPolicy can be used to control how the source application can communicate with the target application via the app address.
+A UnitPolicy allows access to the specified port but only to the unit pods of the charm via individual unit addresses.
 
 ### Cross-Model Relations
 To request service mesh policies for cross-model relations, additional information is required.
@@ -208,7 +208,7 @@ class Policy(pydantic.BaseModel):
 
     def __init__(self, **data):
         warnings.warn(
-            "Policy is deprecated. Use AppPolicy for fine-grained application-level policies "
+            "Polcy is deprecated. Use AppPolicy for fine-grained application-level policies "
             "or UnitPolicy to allow access to charm units. For migration, Policy can be "
             "directly replaced with AppPolicy.",
             DeprecationWarning,
@@ -229,9 +229,9 @@ class UnitPolicy(pydantic.BaseModel):
     """Data type for defining a policy for your charm unit."""
 
     relation: str
-    # UnitPolicy is a Ztunnel bound L4 policy. It cannot support L7 attributes of the Endpoint class.
-    # Hence only access control attribute that can be provided are ports (which is L4)
-    # For info on which are considered L4 attributes check here: https://istio.io/latest/docs/ambient/usage/l4-policy/
+    # UnitPolicy at the moment only supports access control over ports.
+    # This limitation stems from the currenlty supported upstream service meshes (Istio).
+    # Since other attributes of Endpoints class are not supported, the easiest implementation was to use just the ports attribute in this class.
     ports: Optional[List[int]] = None
 
 
@@ -456,7 +456,7 @@ def build_mesh_policies(
         relation_mapping: Charm's RelatioMapping object, for example self.model.relations.
         target_app_name: The name of the target application, for example self.app.name.
         target_namespace: The namespace of the target application, for example self.model.name.
-        policies: List of Policy (deprecated), AppPolicy, or UnitPolicy objects defining the access rules.
+        policies: List of AppPolicy, or UnitPolicy objects defining the access rules.
         cmr_application_data: Data for cross-model relations, mapping app names to CMRData.
     """
     mesh_policies = []

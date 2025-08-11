@@ -321,9 +321,9 @@ class IstioBeaconCharm(ops.CharmBase):
                     for endpoint in policy.endpoints
                 )
                 if not valid_unit_policy:
-                    logger.warning(
-                        f"UnitPolicy requested between {policy.source_app_name} and {policy.target_app_name} is not created as it contains some unallowed policy attributes."
-                        "Unallowed policy attributes for UnitPolicy include paths, methods and hosts"
+                    logger.error(
+                        f"UnitPolicy requested between {policy.source_app_name} and {policy.target_app_name} is not created as it contains some disallowed policy attributes."
+                        "UnitPolicy cannot contain paths, methods or hosts"
                     )
                     continue
 
@@ -369,7 +369,7 @@ class IstioBeaconCharm(ops.CharmBase):
                 )
 
             # L7 policy created for target Juju applications (services)
-            else:
+            elif policy.target_type == PolicyTargetType.app:
                 target_service = policy.target_service or policy.target_app_name
                 if policy.target_service is None:
                     logger.info(
@@ -425,6 +425,9 @@ class IstioBeaconCharm(ops.CharmBase):
                         # exclude_none=True because null values in this data always mean the Kubernetes default
                     ).model_dump(by_alias=True, exclude_unset=True, exclude_none=True),
                 )
+
+            else:
+                raise
 
         # We need to allow the juju controller to be able to talk to the model operator
         if self.config["model-on-mesh"]:
