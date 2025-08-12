@@ -27,11 +27,11 @@ from charms.istio_beacon_k8s.v0.service_mesh import (
     MeshType,
     PolicyResourceManager,
     ServiceMeshProvider,
-    label_configmap_name_template,
-    reconcile_charm_labels,
     UnitPolicy,
     build_mesh_policies,
     get_data_from_cmr_relation,
+    label_configmap_name_template,
+    reconcile_charm_labels,
 )
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.tempo_coordinator_k8s.v0.charm_tracing import trace_charm
@@ -358,7 +358,7 @@ class IstioBeaconCharm(ops.CharmBase):
             relation_mapping=self.model.relations,
             target_app_name=self.app.name,
             target_namespace=self.model.name,
-            policies=self._service_mesh_policies,
+            policies=self._service_mesh_policies,  # pyright: ignore
             cmr_application_data=cmr_data
         )
         logger.debug(
