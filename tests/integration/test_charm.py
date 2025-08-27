@@ -12,6 +12,7 @@ from helpers import (
     APP_NAME,
     RESOURCES,
     assert_request_returns_http_code,
+    assert_tcp_connectivity,
     istio_k8s,
     validate_labels,
     validate_policy_exists,
@@ -280,8 +281,8 @@ async def test_modeloperator_rule(ops_test: OpsTest, service_mesh_tester):
         service_mesh_tester, application_name="sender", resources=resources, trust=True
     )
     await omm.model.wait_for_idle(status="active")
-    # Return code is 400 because I do not know how to properly format an api call to the modeloperator. But we only
-    # care that the request reached its destination.
-    assert_request_returns_http_code(
-        omm.model.name, "sender/0", f"http://modeloperator.{ops_test.model.name}:17071", code=400
+    # Test TCP connectivity to modeloperator - we only care that the network connection can be established,
+    # proving that the service mesh allows traffic from off-mesh workloads to the modeloperator
+    assert_tcp_connectivity(
+        omm.model.name, "sender/0", f"modeloperator.{ops_test.model.name}.svc.cluster.local", 17071
     )
