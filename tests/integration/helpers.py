@@ -134,3 +134,40 @@ def assert_request_returns_http_code(
     assert (
         returned_code == code
     ), f"Expected {code} but got {returned_code} for {source_unit} -> {target_url} on {method}"
+
+
+@retry(
+    wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_delay(120), reraise=True
+)
+def assert_tcp_connectivity(
+    model: str, source_unit: str, host: str, port: int, inverse_check: bool = False
+):
+    """Test TCP connectivity from source unit to target host:port using /dev/tcp.
+
+    Args:
+        model: Juju model name
+        source_unit: Source unit name (e.g., "sender/0")
+        host: Target hostname or IP
+        port: Target port number
+        inverse_check: Pass if the connection fails
+    """
+    cmd = f'timeout 5 bash -c "echo >/dev/tcp/{host}/{port}"'
+
+    try:
+        _ = sh.juju.ssh(  # pyright: ignore
+            "-m",
+            model,
+            source_unit,
+            cmd,
+            _return_cmd=True,
+        )
+        exit_code = 0
+        logger.info(f"TCP connectivity test succeeded: {source_unit} -> {host}:{port}")
+    except sh.ErrorReturnCode as e:
+        exit_code = e.exit_code
+        logger.info(f"TCP connectivity test failed with exit code {exit_code}: {source_unit} -> {host}:{port}")
+
+    if not inverse_check:
+        assert exit_code == 0, f"Expected TCP connection to {host}:{port} to succeed, but got exit code {exit_code}"
+    else:
+        assert exit_code != 0, f"Expected TCP connection to {host}:{port} to fail, but it succeeded"
