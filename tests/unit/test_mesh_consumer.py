@@ -275,6 +275,18 @@ def test_relation_data_policies(policies, expected_data):
         model=scenario.Model(name="my_model"),
     )
     out = ctx.run(ctx.on.relation_created(relation=mesh_relation), state)
+    # append the default cross unit policy added to expected data
+    expected_data.append(
+        {
+            "source_app_name": expected_data[0]["target_app_name"],
+            "source_namespace":  expected_data[0]["target_namespace"],
+            "target_app_name": expected_data[0]["target_app_name"],
+            "target_namespace":  expected_data[0]["target_namespace"],
+            "target_service": None,
+            "target_type": "unit",
+            "endpoints": [],
+        }
+    )
     assert (
         json.loads(out.get_relation(mesh_relation.id).local_app_data["policies"]) == expected_data
     )

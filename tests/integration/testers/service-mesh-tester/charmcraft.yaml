@@ -14,11 +14,11 @@ bases:
 
 config:
   options:
-    auto-allow-intra-app-access:
+    restrict-cross-unit-communication:
       type: boolean
       default: false
       description: |
-        Used for `ServiceMeshConsumer`'s `auto_allow_intra_app_access` argument, which controls whether the units of this charm are allowed to communicate with each other or not.
+        Used for `ServiceMeshConsumer`'s `restrict_cross_unit_communication` argument, which controls whether the units of this charm are allowed to communicate with each other or not.
     auto-join-mesh:
       type: boolean
       default: true

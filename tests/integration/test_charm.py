@@ -111,7 +111,7 @@ async def test_deploy_service_mesh_apps(ops_test: OpsTest, service_mesh_tester):
         resources=resources,
         trust=True,
         config={
-            "auto-allow-intra-app-access": "true",  # used to test communication between units of this charm
+            "restrict-cross-unit-communication": "true",
         },
     )
     await ops_test.model.deploy(
@@ -292,24 +292,24 @@ async def test_service_mesh_consumer_scaling(ops_test: OpsTest):
 
 
 @pytest.mark.abort_on_fail
-async def test_intra_app_access_in_scaled_service_mesh_consumer(ops_test: OpsTest):
+async def test_cross_unit_communication_in_scaled_service_mesh_consumer(ops_test: OpsTest):
     """Tests if the units in the scaled service mesh consumer is allowed to talk to each other based on the config."""
     assert ops_test.model
 
-    # sender1 configured with auto-allow-intra-app-access enabled should allow communication between units
+    # sender1 configured explicitly to restrict cross unit communication should not allow communication between units
     assert_request_returns_http_code(
         ops_test.model.name,
         "sender1/0",
         f"http://sender1-1.sender1-endpoints.{ops_test.model.name}.svc.cluster.local:8080/foo",
-        code=200,
+        code=1,
     )
 
-    # sender2 configured with auto-allow-intra-app-access disabled should not allow communication between units
+    # sender2 with default config should allow cross unit communication
     assert_request_returns_http_code(
         ops_test.model.name,
         "sender2/0",
         f"http://sender2-1.sender2-endpoints.{ops_test.model.name}.svc.cluster.local:8080/foo",
-        code=1,
+        code=200,
     )
 
 
