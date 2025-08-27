@@ -80,28 +80,6 @@ async def test_service_mesh_relation(ops_test: OpsTest, service_mesh_tester):
 @pytest.mark.parametrize(
     "n_units",
     (
-        # Scale up from 1 to 2
-        2,
-        # Scale down to 1
-        1,
-    ),
-)
-async def test_service_mesh_consumer_scaling(ops_test: OpsTest, n_units):
-    """Tests if the ServiceMeshConsumer class allows the consumer app to scale without errors."""
-    assert ops_test.model
-    await ops_test.model.applications[TESTER_APP_NAME].scale(n_units)
-    await ops_test.model.wait_for_idle(
-        [TESTER_APP_NAME],
-        status="active",
-        timeout=200,
-        raise_on_error=False,
-    )
-
-
-@pytest.mark.abort_on_fail
-@pytest.mark.parametrize(
-    "n_units",
-    (
         # Scale up from 1 to 3
         3,
         # Scale down to 2

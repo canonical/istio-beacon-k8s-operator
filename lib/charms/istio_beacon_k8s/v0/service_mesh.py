@@ -158,7 +158,7 @@ from ops import CharmBase, Object, RelationMapping
 
 LIBID = "3f40cb7e3569454a92ac2541c5ca0a0c"  # Never change this
 LIBAPI = 0
-LIBPATCH = 8
+LIBPATCH = 9
 
 PYDEPS = ["lightkube", "pydantic"]
 
@@ -265,6 +265,7 @@ class ServiceMeshConsumer(Object):
         cross_model_mesh_provides_name: str = "provide-cmr-mesh",
         policies: Optional[List[Union[Policy, AppPolicy, UnitPolicy]]] = None,
         auto_join: bool = True,
+        auto_allow_intra_app_access: bool = False,
     ):
         """Class used for joining a service mesh.
 
@@ -278,6 +279,7 @@ class ServiceMeshConsumer(Object):
                 charmcraft.yaml for the relation which provides the cross_model_mesh interface.
             policies: List of access policies this charm supports.
             auto_join: Automatically join the mesh by applying labels to charm pods.
+            auto_allow_intra_app_access: Automatically allow communication between the units of the charm instantiating this object,
         """
         super().__init__(charm, mesh_relation_name)
         self._charm = charm
@@ -286,6 +288,7 @@ class ServiceMeshConsumer(Object):
         self._policies = policies or []
         self._label_configmap_name = label_configmap_name_template.format(app_name=self._charm.app.name)
         self._lightkube_client = None
+        self._auto_allow_intra_app_access = auto_allow_intra_app_access
         if auto_join:
             self.framework.observe(
                 self._charm.on[mesh_relation_name].relation_changed, self._update_labels
@@ -349,7 +352,8 @@ class ServiceMeshConsumer(Object):
             target_app_name=self._charm.app.name,
             target_namespace=self._my_namespace(),
             policies=self._policies,
-            cmr_application_data=cmr_application_data
+            cmr_application_data=cmr_application_data,
+            append_intra_target_app_policy=self._auto_allow_intra_app_access,
         )
         self._relation.data[self._charm.app]["policies"] = json.dumps(mesh_policies)
 
@@ -454,7 +458,8 @@ def build_mesh_policies(
         target_app_name: str,
         target_namespace: str,
         policies: List[Union[Policy, AppPolicy, UnitPolicy]],
-        cmr_application_data: Dict[str, CMRData]
+        cmr_application_data: Dict[str, CMRData],
+        append_intra_target_app_policy: bool,
 ) -> List[MeshPolicy]:
     """Generate MeshPolicy that implement the given policies for the currently related applications.
 
@@ -464,6 +469,7 @@ def build_mesh_policies(
         target_namespace: The namespace of the target application, for example self.model.name.
         policies: List of AppPolicy, or UnitPolicy objects defining the access rules.
         cmr_application_data: Data for cross-model relations, mapping app names to CMRData.
+        append_intra_target_app_policy: If True, appends a UnitPolicy with source and target pointing to target_app_name and target_namespace. This policy allows communication between the units of the target application.
     """
     mesh_policies = []
     for policy in policies:
@@ -507,6 +513,20 @@ def build_mesh_policies(
                         endpoints=policy.endpoints,
                     ).model_dump()
                 )
+
+    if append_intra_target_app_policy:
+        mesh_policies.append(
+            MeshPolicy(
+                # The source intentionally is same as the target. This policy concerns with the intra app access between units.
+                source_app_name=target_app_name,
+                source_namespace=target_namespace,
+                target_app_name=target_app_name,
+                target_namespace=target_namespace,
+                target_service=None,
+                target_type=PolicyTargetType.unit,
+                endpoints=[],
+            ).model_dump()
+        )
     return mesh_policies
 
 

@@ -109,6 +109,9 @@ async def test_deploy_service_mesh_apps(ops_test: OpsTest, service_mesh_tester):
         application_name="sender1",
         resources=resources,
         trust=True,
+        config={
+            "auto-allow-intra-app-access": "true",  # used to test communication between units of this charm
+        },
     )
     await ops_test.model.deploy(
         service_mesh_tester,
@@ -262,6 +265,51 @@ async def test_service_mesh_relation(ops_test: OpsTest, model_on_mesh):
         code=1, # connection to the workload will be refused
     )
 
+
+@pytest.mark.abort_on_fail
+async def test_service_mesh_consumer_scaling(ops_test: OpsTest):
+    """Tests if the ServiceMeshConsumer class allows the consumer app to scale without errors.
+
+    Note: This test is stateful and will leave the sender1 and sender2 deployment at a scale of 2.
+    """
+    assert ops_test.model
+    await ops_test.model.applications["sender1"].scale(2)
+    await ops_test.model.wait_for_idle(
+        ["sender1"],
+        status="active",
+        timeout=200,
+        raise_on_error=False,
+    )
+
+    await ops_test.model.applications["sender2"].scale(2)
+    await ops_test.model.wait_for_idle(
+        ["sender2"],
+        status="active",
+        timeout=200,
+        raise_on_error=False,
+    )
+
+
+@pytest.mark.abort_on_fail
+async def test_intra_app_access_in_scaled_service_mesh_consumer(ops_test: OpsTest):
+    """Tests if the units in the scaled service mesh consumer is allowed to talk to each other based on the config."""
+    assert ops_test.model
+
+    # sender1 configured with auto-allow-intra-app-access enabled should allow communication between units
+    assert_request_returns_http_code(
+        ops_test.model.name,
+        "sender1/0",
+        f"http://sender1-1.sender1-endpoints.{ops_test.model.name}.svc.cluster.local:8080/foo",
+        code=200,
+    )
+
+    # sender2 configured with auto-allow-intra-app-access disabled should not allow communication between units
+    assert_request_returns_http_code(
+        ops_test.model.name,
+        "sender2/0",
+        f"http://sender2-1.sender2-endpoints.{ops_test.model.name}.svc.cluster.local:8080/foo",
+        code=1,
+    )
 
 
 @pytest.mark.abort_on_fail
