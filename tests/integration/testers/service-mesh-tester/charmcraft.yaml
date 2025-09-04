@@ -14,11 +14,11 @@ bases:
 
 config:
   options:
-    restrict-cross-unit-communication:
+    peer-communication:
       type: boolean
-      default: false
+      default: true
       description: |
-        Used for `ServiceMeshConsumer`'s `restrict_cross_unit_communication` argument, which controls whether the units of this charm are allowed to communicate with each other or not.
+        Used for `ServiceMeshConsumer`'s `peer_communication` argument, which controls whether the units of this charm are allowed to communicate with each other or not.
     auto-join-mesh:
       type: boolean
       default: true

@@ -265,7 +265,7 @@ class ServiceMeshConsumer(Object):
         cross_model_mesh_provides_name: str = "provide-cmr-mesh",
         policies: Optional[List[Union[Policy, AppPolicy, UnitPolicy]]] = None,
         auto_join: bool = True,
-        restrict_cross_unit_communication: bool = False,
+        peer_communication: bool = True,
     ):
         """Class used for joining a service mesh.
 
@@ -279,7 +279,7 @@ class ServiceMeshConsumer(Object):
                 charmcraft.yaml for the relation which provides the cross_model_mesh interface.
             policies: List of access policies this charm supports.
             auto_join: Automatically join the mesh by applying labels to charm pods.
-            restrict_cross_unit_communication: Restrict the communication between the units of the charm instantiating this object,
+            peer_communication: Allow/Deny the communication between the units of the charm instantiating this object. Defaults to True.
         """
         super().__init__(charm, mesh_relation_name)
         self._charm = charm
@@ -288,7 +288,7 @@ class ServiceMeshConsumer(Object):
         self._policies = policies or []
         self._label_configmap_name = label_configmap_name_template.format(app_name=self._charm.app.name)
         self._lightkube_client = None
-        self._restrict_cross_unit_commmunication = restrict_cross_unit_communication
+        self._peer_commmunication = peer_communication
         if auto_join:
             self.framework.observe(
                 self._charm.on[mesh_relation_name].relation_changed, self._update_labels
@@ -353,7 +353,7 @@ class ServiceMeshConsumer(Object):
             target_namespace=self._my_namespace(),
             policies=self._policies,
             cmr_application_data=cmr_application_data,
-            append_intra_target_app_policy=not self._restrict_cross_unit_commmunication,
+            append_intra_target_app_policy=self._peer_commmunication,
         )
         self._relation.data[self._charm.app]["policies"] = json.dumps(mesh_policies)
 

@@ -42,7 +42,7 @@ class ServiceMeshTester(CharmBase):
                 ),
             ],
             auto_join=bool(self.config["auto-join-mesh"]),
-            restrict_cross_unit_communication=bool(self.config["restrict-cross-unit-communication"]),
+            peer_communication=bool(self.config["peer-communication"]),
         )
 
         self.framework.observe(self.on.echo_server_pebble_ready, self.on_pebble_ready)

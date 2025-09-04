@@ -111,7 +111,7 @@ async def test_deploy_service_mesh_apps(ops_test: OpsTest, service_mesh_tester):
         resources=resources,
         trust=True,
         config={
-            "restrict-cross-unit-communication": "true",
+            "peer-communication": "false",
         },
     )
     await ops_test.model.deploy(
@@ -292,7 +292,7 @@ async def test_service_mesh_consumer_scaling(ops_test: OpsTest):
 
 
 @pytest.mark.abort_on_fail
-async def test_cross_unit_communication_in_scaled_service_mesh_consumer(ops_test: OpsTest):
+async def test_peer_communication_in_scaled_service_mesh_consumer(ops_test: OpsTest):
     """Tests if the units in the scaled service mesh consumer is allowed to talk to each other based on the config."""
     assert ops_test.model
 
