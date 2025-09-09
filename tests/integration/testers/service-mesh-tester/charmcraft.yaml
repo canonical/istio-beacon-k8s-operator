@@ -43,6 +43,10 @@ requires:
   require-cmr-mesh:
     interface: cross_model_mesh
 
+peers:
+  peers:
+    interface: service-mesh-tester-peers
+
 containers:
   echo-server:
     resource: echo-server-image
