@@ -13,6 +13,21 @@ from typing import Dict, List
 import ops
 import pydantic
 from charmed_service_mesh_helpers import charm_kubernetes_label
+from charmed_service_mesh_helpers.models import (
+    AllowedRoutes,
+    AuthorizationPolicySpec,
+    From,
+    IstioWaypointResource,
+    IstioWaypointSpec,
+    Listener,
+    Metadata,
+    Operation,
+    PolicyTargetReference,
+    Rule,
+    Source,
+    To,
+    WorkloadSelector,
+)
 from charms.istio_beacon_k8s.v0.service_mesh import (
     MeshPolicy,
     PolicyTargetType,
@@ -37,22 +52,6 @@ from lightkube.resources.core_v1 import Namespace
 from lightkube_extensions.batch import KubernetesResourceManager, create_charm_default_labels
 from ops.model import ActiveStatus, MaintenanceStatus
 from ops.pebble import ChangeError, Layer
-
-from models import (
-    AllowedRoutes,
-    AuthorizationPolicySpec,
-    From,
-    IstioWaypointResource,
-    IstioWaypointSpec,
-    Listener,
-    Metadata,
-    Operation,
-    PolicyTargetReference,
-    Rule,
-    Source,
-    To,
-    WorkloadSelector,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -412,7 +411,7 @@ class IstioBeaconCharm(ops.CharmBase):
                                             if endpoint.ports
                                             else [],
                                             hosts=endpoint.hosts,
-                                            methods=endpoint.methods,
+                                            methods=endpoint.methods,  # type: ignore
                                             paths=endpoint.paths,
                                         )
                                     )
