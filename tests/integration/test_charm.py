@@ -123,10 +123,17 @@ async def test_deploy_service_mesh_apps(ops_test: OpsTest, service_mesh_tester):
         resources=resources,
         trust=True,
     )
+    await ops_test.model.deploy(
+        service_mesh_tester,
+        application_name="sender-scaled",
+        resources=resources,
+        trust=True,
+    )
 
     await ops_test.model.add_relation("receiver1:service-mesh", APP_NAME)
     await ops_test.model.add_relation("sender1:service-mesh", APP_NAME)
     await ops_test.model.add_relation("sender2:service-mesh", APP_NAME)
+    await ops_test.model.add_relation("sender-scaled:service-mesh", APP_NAME)
     await ops_test.model.add_relation("receiver1:inbound", "sender1:outbound")
     await ops_test.model.add_relation("receiver1:inbound-unit", "sender2:outbound")
     await ops_test.model.wait_for_idle(
@@ -135,14 +142,15 @@ async def test_deploy_service_mesh_apps(ops_test: OpsTest, service_mesh_tester):
             "receiver1",
             "sender1",
             "sender2",
-            "sender3"
+            "sender3",
+            "sender-scaled",
         ],
         raise_on_error=False,
     )
 
 
 @pytest.mark.abort_on_fail
-@pytest.mark.parametrize("model_on_mesh", [True, False])
+@pytest.mark.parametrize("model_on_mesh", [False, True])
 async def test_service_mesh_relation(ops_test: OpsTest, model_on_mesh):
     """Test the if the service mesh relation correctly puts the tester applications on mesh and opens restricts traffic as expected.
 
@@ -263,6 +271,37 @@ async def test_service_mesh_relation(ops_test: OpsTest, model_on_mesh):
         code=1, # connection to the workload will be refused
     )
 
+
+@pytest.mark.abort_on_fail
+async def test_service_mesh_consumer_scaling(ops_test: OpsTest):
+    """Tests if the ServiceMeshConsumer class allows the consumer app to scale without errors.
+
+    Note: This test is stateful and will leave the sender1 and sender2 deployment at a scale of 2.
+    """
+    assert ops_test.model
+    await ops_test.model.applications["sender-scaled"].scale(2)
+    await ops_test.model.wait_for_idle(
+        ["sender-scaled"],
+        status="active",
+        timeout=200,
+        raise_on_error=False,
+    )
+
+
+@pytest.mark.abort_on_fail
+@pytest.mark.parametrize("peer_communication", [True, False])
+async def test_peer_communication_in_scaled_service_mesh_consumer(ops_test: OpsTest, peer_communication):
+    """Tests if the units in the scaled service mesh consumer is allowed to talk to each other based on the config."""
+    assert ops_test.model
+
+    await ops_test.model.applications["sender-scaled"].set_config({"peer-communication": str(peer_communication).lower()})
+
+    assert_request_returns_http_code(
+        ops_test.model.name,
+        "sender-scaled/0",
+        f"http://sender-scaled-1.sender-scaled-endpoints.{ops_test.model.name}.svc.cluster.local:8080/foo",
+        code=200 if peer_communication else 1,
+    )
 
 
 @pytest.mark.abort_on_fail

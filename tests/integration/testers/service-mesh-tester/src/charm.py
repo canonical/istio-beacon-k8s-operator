@@ -23,28 +23,41 @@ class ServiceMeshTester(CharmBase):
         self._ports = [8080, 8081]
         self.unit.set_ports(*self._ports)
 
+        charm_auth_policies = [
+            AppPolicy(
+                relation="inbound",
+                endpoints=[
+                    Endpoint(
+                        ports=self._ports,
+                        methods=["GET", "POST"],  # type: ignore
+                        paths=["/foo", "/bar/"],
+                    ),
+                ],
+            ),
+            UnitPolicy(
+                relation="inbound-unit",
+                ports=self._ports,
+            ),
+        ]
+        if bool(self.config["peer-communication"]):
+            charm_auth_policies.append(
+                UnitPolicy(
+                    relation="peers",
+                    ports=self._ports,
+                )
+            )
         self._mesh = ServiceMeshConsumer(
             self,
-            policies=[
-                AppPolicy(
-                    relation="inbound",
-                    endpoints=[
-                        Endpoint(
-                            ports=self._ports,
-                            methods=["GET", "POST"],  # type: ignore
-                            paths=["/foo", "/bar/"],
-                        ),
-                    ],
-                ),
-                UnitPolicy(
-                    relation="inbound-unit",
-                    ports=self._ports,
-                ),
-            ],
+            policies=charm_auth_policies,
             auto_join=bool(self.config["auto-join-mesh"]),
         )
 
         self.framework.observe(self.on.echo_server_pebble_ready, self.on_pebble_ready)
+        self.framework.observe(self.on.config_changed, self._on_config_changed)
+
+    def _on_config_changed(self, event):
+        if self.unit.is_leader():
+            self._mesh.update_service_mesh()
 
     def on_pebble_ready(self, _):
         container = self.unit.get_container("echo-server")

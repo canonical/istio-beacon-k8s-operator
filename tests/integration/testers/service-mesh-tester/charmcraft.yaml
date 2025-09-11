@@ -14,6 +14,11 @@ bases:
 
 config:
   options:
+    peer-communication:
+      type: boolean
+      default: true
+      description: |
+        Used for `ServiceMeshConsumer`'s `peer_communication` argument, which controls whether the units of this charm are allowed to communicate with each other or not.
     auto-join-mesh:
       type: boolean
       default: true
@@ -37,6 +42,10 @@ requires:
     interface: service_mesh
   require-cmr-mesh:
     interface: cross_model_mesh
+
+peers:
+  peers:
+    interface: service-mesh-tester-peers
 
 containers:
   echo-server:
