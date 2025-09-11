@@ -53,6 +53,11 @@ class ServiceMeshTester(CharmBase):
         )
 
         self.framework.observe(self.on.echo_server_pebble_ready, self.on_pebble_ready)
+        self.framework.observe(self.on.config_changed, self._on_config_changed)
+
+    def _on_config_changed(self, event):
+        if self.unit.is_leader():
+            self._mesh.update_service_mesh()
 
     def on_pebble_ready(self, _):
         container = self.unit.get_container("echo-server")
