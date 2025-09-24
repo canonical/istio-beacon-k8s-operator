@@ -5,32 +5,27 @@
 
 """Istio Beacon Charm."""
 
-import hashlib
 import logging
 import time
 from typing import Dict, List
 
 import ops
-import pydantic
 from charmed_service_mesh_helpers import charm_kubernetes_label
 from charmed_service_mesh_helpers.models import (
     AllowedRoutes,
     AuthorizationPolicySpec,
-    From,
     IstioWaypointResource,
     IstioWaypointSpec,
     Listener,
     Metadata,
-    Operation,
-    PolicyTargetReference,
     Rule,
-    Source,
-    To,
     WorkloadSelector,
 )
+from charms.istio_beacon_k8s.v0.service_mesh import RESOURCE_TYPES as SERVICE_MESH_RESOURCE_TYPES
 from charms.istio_beacon_k8s.v0.service_mesh import (
     MeshPolicy,
-    PolicyTargetType,
+    MeshType,
+    PolicyResourceManager,
     ServiceMeshProvider,
     label_configmap_name_template,
     reconcile_charm_labels,
@@ -59,16 +54,9 @@ RESOURCE_TYPES = {
     "Gateway": create_namespaced_resource(
         "gateway.networking.k8s.io", "v1", "Gateway", "gateways"
     ),
-    "AuthorizationPolicy": create_namespaced_resource(
-        "security.istio.io",
-        "v1",
-        "AuthorizationPolicy",
-        "authorizationpolicies",
-    ),
 }
 
 AUTHORIZATION_POLICY_LABEL = "istio-authorization-policy"
-AUTHORIZATION_POLICY_RESOURCE_TYPES = {RESOURCE_TYPES["AuthorizationPolicy"]}
 WAYPOINT_LABEL = "istio-waypoint"
 WAYPOINT_RESOURCE_TYPES = {
     RESOURCE_TYPES["Gateway"],
@@ -219,12 +207,13 @@ class IstioBeaconCharm(ops.CharmBase):
         return self._lightkube_client
 
     def _get_authorization_policy_resource_manager(self):
-        return KubernetesResourceManager(
+        return PolicyResourceManager(
+            self,
+            lightkube_client=self.lightkube_client,
+            mesh_type=MeshType.istio,  # pyright: ignore
             labels=create_charm_default_labels(
                 self.app.name, self.model.name, scope=AUTHORIZATION_POLICY_LABEL
             ),
-            resource_types=AUTHORIZATION_POLICY_RESOURCE_TYPES,  # pyright: ignore
-            lightkube_client=self.lightkube_client,
             logger=logger,
         )
 
@@ -308,145 +297,6 @@ class IstioBeaconCharm(ops.CharmBase):
         mesh_policies.extend(self._mesh.mesh_info())
         return mesh_policies
 
-    def _build_authorization_policies(self, mesh_info: List[MeshPolicy]):
-        """Build all managed authorization policies."""
-        authorization_policies = [None] * len(mesh_info)
-        for i, policy in enumerate(mesh_info):
-            # L4 policy created for target Juju units (workloads)
-            if policy.target_type == PolicyTargetType.unit:
-                # if the mesh policy of type unit contain any of the L7 attributes, warn and dont create the policy
-                valid_unit_policy = not any(
-                    endpoint.methods or endpoint.paths or endpoint.hosts
-                    for endpoint in policy.endpoints
-                )
-                if not valid_unit_policy:
-                    logger.error(
-                        f"UnitPolicy requested between {policy.source_app_name} and {policy.target_app_name} is not created as it contains some disallowed policy attributes."
-                        "UnitPolicy cannot contain paths, methods or hosts"
-                    )
-                    continue
-
-                authorization_policies[i] = RESOURCE_TYPES["AuthorizationPolicy"](  # type: ignore
-                    metadata=ObjectMeta(
-                        name=self._generate_authorization_policy_name(policy),
-                        # FIXME: This should be the namespace of the target app, not the beacon
-                        namespace=self.model.name,
-                    ),
-                    spec=AuthorizationPolicySpec(
-                        selector=WorkloadSelector(
-                            matchLabels={
-                                "app.kubernetes.io/name": policy.target_app_name,
-                            }
-                        ),
-                        rules=[
-                            Rule(
-                                from_=[  # type: ignore # this is accessible via an alias
-                                    From(
-                                        source=Source(
-                                            principals=[
-                                                _get_peer_identity_for_juju_application(
-                                                    policy.source_app_name, policy.source_namespace
-                                                )
-                                            ]
-                                        )
-                                    )
-                                ],
-                                to=[
-                                    To(
-                                        operation=Operation(
-                                            # TODO: Make these ports strings instead of ints in endpoint?
-                                            ports=[str(p) for p in endpoint.ports]
-                                            if endpoint.ports
-                                            else [],
-                                        )
-                                    )
-                                    for endpoint in policy.endpoints
-                                ],
-                            ),
-                        ],
-                    ).model_dump(by_alias=True, exclude_unset=True, exclude_none=True),
-                )
-
-            # L7 policy created for target Juju applications (services)
-            elif policy.target_type == PolicyTargetType.app:
-                target_service = policy.target_service or policy.target_app_name
-                if policy.target_service is None:
-                    logger.info(
-                        f"Got policy for application '{policy.target_app_name}' that has no target_service. "
-                        f"Defaulting to application name '{target_service}'."
-                    )
-
-                authorization_policies[i] = RESOURCE_TYPES["AuthorizationPolicy"](  # type: ignore
-                    metadata=ObjectMeta(
-                        name=self._generate_authorization_policy_name(policy),
-                        # FIXME: This should be the namespace of the target app, not the beacon
-                        namespace=self.model.name,
-                    ),
-                    spec=AuthorizationPolicySpec(
-                        targetRefs=[
-                            PolicyTargetReference(
-                                kind="Service",
-                                group="",
-                                name=target_service,
-                            )
-                        ],
-                        rules=[
-                            Rule(
-                                from_=[  # type: ignore # this is accessible via an alias
-                                    From(
-                                        source=Source(
-                                            principals=[
-                                                _get_peer_identity_for_juju_application(
-                                                    policy.source_app_name, policy.source_namespace
-                                                )
-                                            ]
-                                        )
-                                    )
-                                ],
-                                to=[
-                                    To(
-                                        operation=Operation(
-                                            # TODO: Make these ports strings instead of ints in endpoint?
-                                            ports=[str(p) for p in endpoint.ports]
-                                            if endpoint.ports
-                                            else [],
-                                            hosts=endpoint.hosts,
-                                            methods=endpoint.methods,  # type: ignore
-                                            paths=endpoint.paths,
-                                        )
-                                    )
-                                    for endpoint in policy.endpoints
-                                ],
-                            )
-                        ],
-                        # by_alias=True because the model includes an alias for the `from` field
-                        # exclude_unset=True because unset fields will be treated as their default values in Kubernetes
-                        # exclude_none=True because null values in this data always mean the Kubernetes default
-                    ).model_dump(by_alias=True, exclude_unset=True, exclude_none=True),
-                )
-
-            else:
-                raise
-
-        # We need to allow the juju controller to be able to talk to the model operator
-        if self.config["model-on-mesh"]:
-            authorization_policies.append(
-                RESOURCE_TYPES["AuthorizationPolicy"](  # type: ignore
-                    metadata=ObjectMeta(
-                        name=f"{self.app.name}-{self.model.name}-policy-all-sources-modeloperator",
-                        namespace=self.model.name,
-                    ),
-                    spec=AuthorizationPolicySpec(
-                        selector=WorkloadSelector(
-                            matchLabels={"juju-modeloperator": "modeloperator"}
-                        ),
-                        rules=[Rule()],
-                    ).model_dump(by_alias=True, exclude_unset=True, exclude_none=True),
-                )
-            )
-
-        return authorization_policies
-
     def _construct_waypoint(self):
         gateway = IstioWaypointResource(
             metadata=Metadata(
@@ -498,22 +348,37 @@ class IstioBeaconCharm(ops.CharmBase):
 
     def _sync_authorization_policies(self):
         """Sync authorization policies."""
-        mesh_policies = self._collect_mesh_policies()
+        mesh_policies = []
+        custom_policy_resources = None
 
         if self.config["manage-authorization-policies"]:
-            authorization_policies = self._build_authorization_policies(mesh_policies)
-            logger.debug("Reconciling state of AuthorizationPolicies to:")
-            logger.debug(authorization_policies)
+            mesh_policies = self._collect_mesh_policies()
+
+            if self.config["model-on-mesh"]:
+                # When model on mesh, allow the juju controller to talk to the model operator
+                custom_policy_resources = [
+                    SERVICE_MESH_RESOURCE_TYPES["AuthorizationPolicy"](  # type: ignore
+                        metadata=ObjectMeta(
+                            name=f"{self.app.name}-{self.model.name}-policy-all-sources-modeloperator",
+                            namespace=self.model.name,
+                        ),
+                        spec=AuthorizationPolicySpec(
+                            selector=WorkloadSelector(
+                                matchLabels={"juju-modeloperator": "modeloperator"}
+                            ),
+                            rules=[Rule()],
+                        ).model_dump(by_alias=True, exclude_unset=True, exclude_none=True),
+                    ),
+                ]
         else:
             # We reconcile to an empty list rather than skip reconciling entirely so that, if the user changes the
             # config while the charm is running, we remove all AuthorizationPolicies.
             logger.debug(
                 "AuthorizationPolicies creation is disabled - reconciling to no Authorization Policies."
             )
-            authorization_policies = []
 
         krm = self._get_authorization_policy_resource_manager()
-        krm.reconcile(authorization_policies)  # type: ignore
+        krm.reconcile(mesh_policies, custom_policy_resources)  # type: ignore
 
     def _sync_waypoint_resources(self):
         """Reconcile all application resources for waypoint.
@@ -639,45 +504,6 @@ class IstioBeaconCharm(ops.CharmBase):
             "istio.io/use-waypoint-namespace": self.model.name,
         }
 
-    def _generate_authorization_policy_name(self, mesh_policy: MeshPolicy) -> str:
-        """Generate a unique name for an AuthorizationPolicy, suffixing a hash of the MeshPolicy to avoid collisions.
-
-        The name has the following general format:
-            {app_name}-{model_name}-policy-{source_app_name}-{source_namespace}-{target_app_name}-{hash}
-        but source_app_name and target_app_name will be truncated if the total name exceeds Kubernetes's limit of 253
-        characters.
-        """
-        # omit target_app_namespace from the name here because that will be the namespace the policy is generated in, so
-        # adding it here is redundant
-        name = "-".join(
-            [
-                self.app.name,
-                self.model.name,
-                "policy",
-                mesh_policy.source_app_name,
-                mesh_policy.source_namespace,
-                mesh_policy.target_app_name,
-                _hash_pydantic_model(mesh_policy)[:8],
-            ]
-        )
-        if len(name) > 253:
-            # Truncate the name to fit within Kubernetes's 253-character limit
-            # juju app names and models must be <= 63 characters each and we have ~20 characters of static text, so
-            # if name is too long just take the first 30 characters of source_app_name, source_namespace, and
-            # target_app_name to be safe.
-            name = "-".join(
-                [
-                    self.app.name,
-                    self.model.name,
-                    "policy",
-                    mesh_policy.source_app_name[:30],
-                    mesh_policy.source_namespace[:30],
-                    mesh_policy.target_app_name[:30],
-                    _hash_pydantic_model(mesh_policy)[:8],
-                ]
-            )
-        return name
-
     def _put_charm_on_mesh(self):
         """Ensure the charm is on the mesh by adding necessary labels to the Pod (via the StatefulSet) and Service.
 
@@ -695,44 +521,6 @@ class IstioBeaconCharm(ops.CharmBase):
     def format_labels(label_dict: Dict[str, str]) -> str:
         """Format a dictionary into a comma-separated string of key=value pairs."""
         return ",".join(f"{key}={value}" for key, value in label_dict.items())
-
-
-def _get_peer_identity_for_juju_application(app_name, namespace):
-    """Return a Juju application's peer identity.
-
-    Format returned is defined by `principals` in
-    [this reference](https://istio.io/latest/docs/reference/config/security/authorization-policy/#Source):
-
-    This function relies on the Juju convention that each application gets a ServiceAccount of the same name in the same
-    namespace.
-    """
-    service_account = app_name
-    return _get_peer_identity_for_service_account(service_account, namespace)
-
-
-def _get_peer_identity_for_service_account(service_account, namespace):
-    """Return a ServiceAccount's peer identity.
-
-    Format returned is defined by `principals` in
-    [this reference](https://istio.io/latest/docs/reference/config/security/authorization-policy/#Source):
-        "cluster.local/ns/{namespace}/sa/{service_account}"
-    """
-    return f"cluster.local/ns/{namespace}/sa/{service_account}"
-
-
-def _hash_pydantic_model(model: pydantic.BaseModel) -> str:
-    """Hash a pydantic BaseModel object.
-
-    This is a simple hashing of the json model dump of the pydantic model.  Items that are excluded from this dump will
-    will not affect the output.
-    """
-
-    def _stable_hash(data):
-        return hashlib.sha256(str(data).encode()).hexdigest()
-
-    # Note: This hash will be affected by changes in how pydandic stringifies data, so if they change things our hash
-    # will change too.  If that proves an issue, we could implement something more controlled here.
-    return _stable_hash(model)
 
 
 def generate_telemetry_labels(
