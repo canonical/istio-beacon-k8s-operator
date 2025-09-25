@@ -184,7 +184,7 @@ POLICY_RESOURCE_TYPES = {
 
 LIBID = "3f40cb7e3569454a92ac2541c5ca0a0c"  # Never change this
 LIBAPI = 0
-LIBPATCH = 9
+LIBPATCH = 10
 
 PYDEPS = [
     "lightkube",
@@ -700,10 +700,10 @@ def _generate_network_policy_name(app_name: str, model_name: str, mesh_policy: M
         return name
 
 
-def _build_policy_resources_istio(app_name: str, model_name: str, mesh_info: List[MeshPolicy]) -> Union[LightkubeResourcesList, List[None]]:
+def _build_policy_resources_istio(app_name: str, model_name: str, policies: List[MeshPolicy]) -> Union[LightkubeResourcesList, List[None]]:
         """Build the required authorization policy resources for istio service mesh."""
-        authorization_policies = [None] * len(mesh_info)
-        for i, policy in enumerate(mesh_info):
+        authorization_policies = [None] * len(policies)
+        for i, policy in enumerate(policies):
             # L4 policy created for target Juju units (workloads)
             if policy.target_type == PolicyTargetType.unit:
                 # if the mesh policy of type unit contain any of the L7 attributes, warn and dont create the policy
@@ -832,6 +832,97 @@ class PolicyResourceManager():
     The PolicyResourceManager provides a reconcile method that can be used in the charm's own reconciler methods for reconciling
     the polcies managed by the charm to the desired state.
 
+    Example:
+    ```python
+    from charms.istio_beacon_k8s.v0.service_mesh import (
+        MeshPolicy,
+        PolicyTargetType,
+        Endpoint,
+        PolicyResourceManager,
+        MeshType,
+    )
+
+    class MyCharm(CharmBase):
+
+        def __init__(self, *args):
+            super().__init__(*args)
+            self._mesh = ServiceMeshConsumer(self)
+
+            self.observe_everything()
+
+        def _get_policy_manager(self):
+            prm = PolicyResourceManager(
+                charm=self,
+                lightkube_client=self.lightkube_client,
+                mesh_type=MeshType.istio,
+                labels={
+                    "label-key": "label-value-that-helps-identify-this-resource",
+                },
+            )
+            return prm
+
+        def _get_policies_i_manage(self):
+            policies=[
+                # policy to allow juju_app_a in juju_app_a_model to talk to juju_app_b in juju_app_b_model with a service
+                # name juju_app_b_service through its service address in ports 8080 and 443 to GET /foo and /bar paths.
+                MeshPolicy[
+                    source_app_name="juju_app_a",
+                    source_namespace="juju_app_a_model",
+                    target_app_name="juju_app_b",
+                    target_namespace="juju_app_b_model",
+                    target_service="juju_app_b_service",
+                    target_type=PolicyTargetType.app,
+                    endpoints=[
+                        Endpoint(
+                            ports=[8080, 443],
+                            methods=[Method.get],
+                            paths=["/foo", "/bar"]
+                        )
+                    ]
+                ],
+                # policy to allow juju_app_a in juju_app_a_model to talk to juju_app_c in juju_app_c_model with a service
+                # name same as the app name through its service address in ports 8080 and 443 to GET /foo.
+                MeshPolicy[
+                    source_app_name="juju_app_a",
+                    source_namespace="juju_app_a_model",
+                    target_app_name="juju_app_c",
+                    target_namespace="juju_app_c_model",
+                    target_type=PolicyTargetType.app,
+                    endpoints=[
+                        Endpoint(
+                            ports=[8080, 443],
+                            methods=[Method.get],
+                            paths=["/foo"]
+                        )
+                    ]
+                ],
+                # policy to allow juju_app_a in juju_app_a_model to talk to juju_app_d in juju_app_d_model with a service
+                # through its pod address in ports 8080. For unit type policies paths and methods restrictions dont apply.
+                MeshPolicy[
+                    source_app_name="juju_app_a",
+                    source_namespace="juju_app_a_model",
+                    target_app_name="juju_app_d",
+                    target_namespace="juju_app_d_model",
+                    target_type=PolicyTargetType.unit,
+                    endpoints=[
+                        Endpoint(
+                            ports=[8080]
+                        )
+                    ]
+                ]
+            ]
+            return policies
+
+        def _on_remove(self):
+            prm = self._get_policy_manager()
+            prm.delete()
+
+        def _reconcile(self):
+            prm = self._get_policy_manager()
+            policies = self._get_policies_i_manager()
+            prm.reconcile(polcies)
+    ````
+
     Args:
         charm (ops.CharmBase): The charm instantiating this object.
         lightkube_client (lightkube.Client): Lightkube Client to use for all k8s operations.
@@ -889,7 +980,6 @@ class PolicyResourceManager():
 
     def reconcile(self,
         policies: List[MeshPolicy],
-        custom_policy_resources: Optional[LightkubeResourcesList] = None,
         force=True,
         ignore_missing=True
     ) -> None:
@@ -900,7 +990,6 @@ class PolicyResourceManager():
 
         This method will:
         * create a list of policy resources containing a policy resource for every provided MeshPolicy object
-        * optinally append any provided pre-built custom policy resources to the list of policy resources to be reconciled
         * get all resources currently deployed that match the label selector in self.labels
         * compare the existing resources to the desired resources provided, deleting any resources
           that exist but are not in the desired resource list
@@ -909,7 +998,6 @@ class PolicyResourceManager():
 
         Args:
             policies (list): A list of MeshPolicy objects that define the required behaviour of the policy resources.
-            custom_policy_resources: *(optional)* A list of pre-constructed lightkube.core.resource.NamespacedResource for polcies.
             This can be used as a manual way to provide a K8s policy resource that cannot be defined using the MeshPolicy data type.
             force: *(optional)* Passed to self.apply().  This will force apply over any resources
                    marked as managed by another field manager.
@@ -917,8 +1005,6 @@ class PolicyResourceManager():
         """
         mesh_typed_policy_resources_builder = self._get_policy_resource_builder()
         mesh_typed_policy_resources = mesh_typed_policy_resources_builder(self._app_name, self._model_name, policies)  # type: ignore
-        if custom_policy_resources is not None:
-            mesh_typed_policy_resources.extend(custom_policy_resources)  # type: ignore
         self._krm.reconcile(mesh_typed_policy_resources, force=force, ignore_missing=ignore_missing)  # type: ignore
 
     def delete(self, ignore_missing=True):

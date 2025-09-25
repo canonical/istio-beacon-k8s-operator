@@ -21,8 +21,8 @@ from charmed_service_mesh_helpers.models import (
     Rule,
     WorkloadSelector,
 )
-from charms.istio_beacon_k8s.v0.service_mesh import RESOURCE_TYPES as SERVICE_MESH_RESOURCE_TYPES
 from charms.istio_beacon_k8s.v0.service_mesh import (
+    POLICY_RESOURCE_TYPES,
     MeshPolicy,
     MeshType,
     PolicyResourceManager,
@@ -30,6 +30,7 @@ from charms.istio_beacon_k8s.v0.service_mesh import (
     label_configmap_name_template,
     reconcile_charm_labels,
 )
+from charms.istio_beacon_k8s.v0.service_mesh import RESOURCE_TYPES as SERVICE_MESH_RESOURCE_TYPES
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.tempo_coordinator_k8s.v0.charm_tracing import trace_charm
 from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer
@@ -57,6 +58,7 @@ RESOURCE_TYPES = {
 }
 
 AUTHORIZATION_POLICY_LABEL = "istio-authorization-policy"
+MODELOPERATOR_POLICY_LABEL = "modeloperator-authorization-policy"
 WAYPOINT_LABEL = "istio-waypoint"
 WAYPOINT_RESOURCE_TYPES = {
     RESOURCE_TYPES["Gateway"],
@@ -186,6 +188,7 @@ class IstioBeaconCharm(ops.CharmBase):
         for krm in (
             self._get_waypoint_resource_manager(),
             self._get_authorization_policy_resource_manager(),
+            self._get_modeloperator_policy_resource_manager(),
         ):
             krm.delete()
 
@@ -214,6 +217,16 @@ class IstioBeaconCharm(ops.CharmBase):
             labels=create_charm_default_labels(
                 self.app.name, self.model.name, scope=AUTHORIZATION_POLICY_LABEL
             ),
+            logger=logger,
+        )
+
+    def _get_modeloperator_policy_resource_manager(self):
+        return KubernetesResourceManager(
+            labels=create_charm_default_labels(
+                self.app.name, self.model.name, scope=MODELOPERATOR_POLICY_LABEL
+            ),
+            resource_types=POLICY_RESOURCE_TYPES[MeshType.istio],  # type: ignore
+            lightkube_client=self.lightkube_client,
             logger=logger,
         )
 
@@ -349,14 +362,14 @@ class IstioBeaconCharm(ops.CharmBase):
     def _sync_authorization_policies(self):
         """Sync authorization policies."""
         mesh_policies = []
-        custom_policy_resources = None
+        modeloperator_policies = []
 
         if self.config["manage-authorization-policies"]:
             mesh_policies = self._collect_mesh_policies()
 
             if self.config["model-on-mesh"]:
                 # When model on mesh, allow the juju controller to talk to the model operator
-                custom_policy_resources = [
+                modeloperator_policies = [
                     SERVICE_MESH_RESOURCE_TYPES["AuthorizationPolicy"](  # type: ignore
                         metadata=ObjectMeta(
                             name=f"{self.app.name}-{self.model.name}-policy-all-sources-modeloperator",
@@ -377,8 +390,12 @@ class IstioBeaconCharm(ops.CharmBase):
                 "AuthorizationPolicies creation is disabled - reconciling to no Authorization Policies."
             )
 
-        krm = self._get_authorization_policy_resource_manager()
-        krm.reconcile(mesh_policies, custom_policy_resources)  # type: ignore
+        # Manage charm (related to beacon) traffic authorization policies
+        prm = self._get_authorization_policy_resource_manager()
+        prm.reconcile(mesh_policies)  # type: ignore
+        # Manage istio beacon's (modeoperator) authorization policies
+        krm = self._get_modeloperator_policy_resource_manager()
+        krm.reconcile(modeloperator_policies)  # type: ignore
 
     def _sync_waypoint_resources(self):
         """Reconcile all application resources for waypoint.
