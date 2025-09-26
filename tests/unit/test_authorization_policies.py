@@ -5,7 +5,12 @@ from unittest.mock import patch
 
 import pytest
 import scenario
-from charms.istio_beacon_k8s.v0.service_mesh import Endpoint, MeshPolicy, PolicyTargetType
+from charms.istio_beacon_k8s.v0.service_mesh import (
+    Endpoint,
+    MeshPolicy,
+    PolicyTargetType,
+    _build_policy_resources_istio,
+)
 
 
 @pytest.fixture()
@@ -120,17 +125,17 @@ def test_build_authorization_policies_app(
         ),
     ) as manager:
         charm: istio_beacon_charm = manager.charm  # type: ignore
-        authorization_policies = charm._build_authorization_policies(mesh_policies)
+        authorization_policies = _build_policy_resources_istio(charm.app.name, charm.model.name, mesh_policies)
 
         # Spot check the outputs
         for i_mesh_policy, mesh_policy in enumerate(mesh_policies):
-            assert authorization_policies[i_mesh_policy]["metadata"].namespace == model_name
-            assert authorization_policies[i_mesh_policy]["spec"]["targetRefs"][0]["name"] == mesh_policy.target_service or mesh_policy.target_app_name
+            assert authorization_policies[i_mesh_policy]["metadata"].namespace == mesh_policy.target_namespace  # type: ignore
+            assert authorization_policies[i_mesh_policy]["spec"]["targetRefs"][0]["name"] == mesh_policy.target_service or mesh_policy.target_app_name  # type: ignore
             for i_endpoint, endpoint in enumerate(mesh_policy.endpoints):
-                assert authorization_policies[i_mesh_policy]["spec"]["rules"][0]["to"][i_endpoint]["operation"]["hosts"] == endpoint.hosts
-                assert authorization_policies[i_mesh_policy]["spec"]["rules"][0]["to"][i_endpoint]["operation"]["ports"] == [str(p) for p in endpoint.ports]
-                assert authorization_policies[i_mesh_policy]["spec"]["rules"][0]["to"][i_endpoint]["operation"]["methods"] == endpoint.methods
-                assert authorization_policies[i_mesh_policy]["spec"]["rules"][0]["to"][i_endpoint]["operation"]["paths"] == endpoint.paths
+                assert authorization_policies[i_mesh_policy]["spec"]["rules"][0]["to"][i_endpoint]["operation"]["hosts"] == endpoint.hosts  # type: ignore
+                assert authorization_policies[i_mesh_policy]["spec"]["rules"][0]["to"][i_endpoint]["operation"]["ports"] == [str(p) for p in endpoint.ports]  # type: ignore
+                assert authorization_policies[i_mesh_policy]["spec"]["rules"][0]["to"][i_endpoint]["operation"]["methods"] == endpoint.methods  # type: ignore
+                assert authorization_policies[i_mesh_policy]["spec"]["rules"][0]["to"][i_endpoint]["operation"]["paths"] == endpoint.paths  # type: ignore
 
 
 @pytest.mark.parametrize(
@@ -185,7 +190,7 @@ def test_build_authorization_policies_unit(
         ),
     ) as manager:
         charm: istio_beacon_charm = manager.charm  # type: ignore
-        authorization_policies = charm._build_authorization_policies(mesh_policies)
+        authorization_policies = _build_policy_resources_istio(charm.app.name, charm.model.name, mesh_policies)
 
         # check if invalid authorization policies are not created
         assert authorization_policies[1] is None
@@ -193,10 +198,10 @@ def test_build_authorization_policies_unit(
         # Spot check the outputs
         for i_mesh_policy, mesh_policy in enumerate(mesh_policies):
             if authorization_policies[i_mesh_policy] is not None:
-                assert authorization_policies[i_mesh_policy]["metadata"].namespace == model_name
-                assert authorization_policies[i_mesh_policy]["spec"]["selector"]["matchLabels"] == {"app.kubernetes.io/name": mesh_policy.target_app_name}
+                assert authorization_policies[i_mesh_policy]["metadata"].namespace == mesh_policy.target_namespace  # type: ignore
+                assert authorization_policies[i_mesh_policy]["spec"]["selector"]["matchLabels"] == {"app.kubernetes.io/name": mesh_policy.target_app_name}  # type: ignore
                 for i_endpoint, endpoint in enumerate(mesh_policy.endpoints):
-                    operation = authorization_policies[i_mesh_policy]["spec"]["rules"][0]["to"][i_endpoint]["operation"]
+                    operation = authorization_policies[i_mesh_policy]["spec"]["rules"][0]["to"][i_endpoint]["operation"]  # type: ignore
                     forbidden_attributes = ["hosts", "paths", "methods"]  # L7 attributes are forbidden in UnitPolicy
                     existing_forbidden = [key for key in forbidden_attributes if key in operation]
                     assert not existing_forbidden, f"Expected attributes {forbidden_attributes} to not exist, but found: {existing_forbidden}"

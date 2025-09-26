@@ -25,7 +25,6 @@ config:
       description: |
         Used for `ServiceMeshConsumer`'s `auto_join` argument, which controls whether this charm will add itself to the mesh if there is a service_mesh relation established to a beacon.
 
-
 provides:
   inbound:
     interface: service
@@ -59,9 +58,12 @@ resources:
 
 parts:
   charm:
+    build-packages: [git]
     charm-binary-python-packages:
       - ops
       - requests
       - pydantic-core
       - pydantic
       - maturin
+      - charmed-service-mesh-helpers
+      - lightkube-extensions@git+https://github.com/canonical/lightkube-extensions.git@main
