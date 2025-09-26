@@ -9,6 +9,7 @@ on:
 jobs:
   pull-request:
     name: PR
+    # TODO: Fixes https://github.com/juju/juju/issues/20738. Replace with standard version tag after the linkes issue is fixed.
     uses: canonical/observability/.github/workflows/charm-pull-request.yaml@chore/pin-juju-3.6.9
     secrets: inherit
     with:

@@ -273,9 +273,9 @@ class UnitPolicy(pydantic.BaseModel):
 
 
 class MeshPolicy(pydantic.BaseModel):
-    """A Generic MeshPolicy data type that describes mesh polcies in a way that is agnostic to the mesh type.
+    """A Generic MeshPolicy data type that describes mesh policies in a way that is agnostic to the mesh type.
 
-    This is also used as the data type for storage service mesh policy information and there by
+    This is also used as the data type for storing service mesh policy information and there by
     defining a standard interface for charmed mesh managed policies.
     """
 
