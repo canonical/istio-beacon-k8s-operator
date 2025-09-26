@@ -8,7 +8,7 @@ on:
 
 jobs:
   release:
-    uses: canonical/observability/.github/workflows/charm-release.yaml@v1
+    uses: canonical/observability/.github/workflows/charm-release.yaml@chore/pin-juju-3.6.9
     secrets: inherit
     with:
       default-track: 2

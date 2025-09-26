@@ -9,7 +9,7 @@ on:
 jobs:
   pull-request:
     name: PR
-    uses: canonical/observability/.github/workflows/charm-pull-request.yaml@v1
+    uses: canonical/observability/.github/workflows/charm-pull-request.yaml@chore/pin-juju-3.6.9
     secrets: inherit
     with:
       automatically-retry-hooks: true # A fix for #8
