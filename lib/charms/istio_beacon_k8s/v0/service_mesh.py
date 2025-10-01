@@ -169,6 +169,7 @@ from lightkube.resources.core_v1 import ConfigMap, Service
 from lightkube_extensions.batch import KubernetesResourceManager
 from lightkube_extensions.types import LightkubeResourcesList
 from ops import CharmBase, Object, RelationMapping
+from pydantic import Field
 
 RESOURCE_TYPES = {
     "AuthorizationPolicy": create_namespaced_resource(
@@ -279,14 +280,14 @@ class MeshPolicy(pydantic.BaseModel):
     defining a standard interface for charmed mesh managed policies.
     """
 
-    source_app_name: str
     source_namespace: str
+    source_app_name: str
     target_namespace: str
     target_app_name: Optional[str] = None
     target_workload_selector: Optional[Dict[str, str]] = None
     target_service: Optional[str] = None
     target_type: Literal[PolicyTargetType.app, PolicyTargetType.unit] = PolicyTargetType.app
-    endpoints: List[Endpoint]
+    endpoints: List[Endpoint] = Field(default_factory=list)
 
     @pydantic.model_validator(mode="after")
     def _validate(self):
@@ -557,10 +558,10 @@ def build_mesh_policies(
             if isinstance(policy, UnitPolicy):
                 mesh_policies.append(
                     MeshPolicy(
-                        source_app_name=source_app_name,
                         source_namespace=source_namespace,
-                        target_app_name=target_app_name,
+                        source_app_name=source_app_name,
                         target_namespace=target_namespace,
+                        target_app_name=target_app_name,
                         target_service=None,
                         target_type=PolicyTargetType.unit,
                         endpoints=[
@@ -575,10 +576,10 @@ def build_mesh_policies(
             else:
                mesh_policies.append(
                     MeshPolicy(
-                        source_app_name=source_app_name,
                         source_namespace=source_namespace,
-                        target_app_name=target_app_name,
+                        source_app_name=source_app_name,
                         target_namespace=target_namespace,
+                        target_app_name=target_app_name,
                         target_service=policy.service,
                         target_type=PolicyTargetType.app,
                         endpoints=policy.endpoints,
@@ -700,8 +701,8 @@ def _generate_network_policy_name(app_name: str, model_name: str, mesh_policy: M
         """Generate a unique name for the network policy resource, suffixing a hash of the MeshPolicy to avoid collisions.
 
         The name has the following general format:
-            {app_name}-{model_name}-policy-{source_app_name}-{source_namespace}-{target_app_name}-{hash}
-        but source_app_name and target_app_name will be truncated if the total name exceeds Kubernetes's limit of 253
+            {app_name}-{model_name}-policy-{source_app_name}-{source_namespace}-{target_app_name/target_service/custom-selector}-{hash}
+        but source_app_name and the name of the target will be truncated if the total name exceeds Kubernetes's limit of 253
         characters.
         """
         # omit target_app_namespace from the name here because that will be the namespace the policy is generated in, so
@@ -811,7 +812,12 @@ def _build_policy_resources_istio(app_name: str, model_name: str, policies: List
                 if policy.target_service is None:
                     logger.info(
                         f"Got policy for application '{policy.target_app_name}' that has no target_service. "
-                        f"Defaulting to application name '{target_service}'."
+                        f"Defaulting to application name."
+                    )
+                if all([policy.target_service, policy.target_app_name]):
+                    logger.info(
+                        f"Got policy for application '{policy.target_app_name}' that has both target_service and target_app_name. "
+                        f"Using {target_service} for policy target definition."
                     )
 
                 authorization_policies[i] = RESOURCE_TYPES["AuthorizationPolicy"](  # type: ignore
@@ -913,10 +919,10 @@ class PolicyResourceManager():
                 # policy to allow juju_app_a in juju_app_a_model to talk to juju_app_b in juju_app_b_model with a service
                 # name juju_app_b_service through its service address in ports 8080 and 443 to GET /foo and /bar paths.
                 MeshPolicy[
-                    source_app_name="juju_app_a",
                     source_namespace="juju_app_a_model",
-                    target_app_name="juju_app_b",
+                    source_app_name="juju_app_a",
                     target_namespace="juju_app_b_model",
+                    target_app_name="juju_app_b",
                     target_service="juju_app_b_service",
                     target_type=PolicyTargetType.app,
                     endpoints=[
@@ -930,10 +936,10 @@ class PolicyResourceManager():
                 # policy to allow juju_app_a in juju_app_a_model to talk to juju_app_c in juju_app_c_model with a service
                 # name same as the app name through its service address in ports 8080 and 443 to GET /foo.
                 MeshPolicy[
-                    source_app_name="juju_app_a",
                     source_namespace="juju_app_a_model",
-                    target_app_name="juju_app_c",
+                    source_app_name="juju_app_a",
                     target_namespace="juju_app_c_model",
+                    target_app_name="juju_app_c",
                     target_type=PolicyTargetType.app,
                     endpoints=[
                         Endpoint(
@@ -946,10 +952,10 @@ class PolicyResourceManager():
                 # policy to allow juju_app_a in juju_app_a_model to talk to juju_app_d in juju_app_d_model with a service
                 # through its pod address in ports 8080. For unit type policies paths and methods restrictions dont apply.
                 MeshPolicy[
-                    source_app_name="juju_app_a",
                     source_namespace="juju_app_a_model",
-                    target_app_name="juju_app_d",
+                    source_app_name="juju_app_a",
                     target_namespace="juju_app_d_model",
+                    target_app_name="juju_app_d",
                     target_type=PolicyTargetType.unit,
                     endpoints=[
                         Endpoint(
@@ -1063,4 +1069,3 @@ class PolicyResourceManager():
             ignore_missing: *(optional)* Avoid raising 404 errors on deletion (defaults to True)
         """
         self._krm.delete(ignore_missing=ignore_missing)
-

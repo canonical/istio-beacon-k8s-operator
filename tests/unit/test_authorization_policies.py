@@ -22,10 +22,10 @@ def service_mesh_relation():
             "policies": json.dumps(
                 [
                     MeshPolicy(
-                        source_app_name="source-app1",
                         source_namespace="source-namespace1",
-                        target_app_name="target-app1",
+                        source_app_name="source-app1",
                         target_namespace="target-namespace1",
+                        target_app_name="target-app1",
                         target_service="my-service1",
                         target_type=PolicyTargetType.app,
                         endpoints=[
@@ -38,10 +38,10 @@ def service_mesh_relation():
                         ],
                     ).model_dump(),
                     MeshPolicy(
-                        source_app_name="source-app2",
                         source_namespace="source-namespace2",
-                        target_app_name="target-app2",
+                        source_app_name="source-app2",
                         target_namespace="target-namespace2",
+                        target_app_name="target-app2",
                         # target_service="my-service2",  # omit, which should get the default of target app name
                         target_type=PolicyTargetType.app,
                         endpoints=[
@@ -78,10 +78,10 @@ def test_get_authorization_policies_from_related_apps(
         (
             (
                 MeshPolicy(
-                    source_app_name="source-app0",
                     source_namespace="source-namespace0",
-                    target_app_name="target-app0",
+                    source_app_name="source-app0",
                     target_namespace="target-namespace0",
+                    target_app_name="target-app0",
                     target_type=PolicyTargetType.app,
                     endpoints=[
                         Endpoint(
@@ -93,10 +93,10 @@ def test_get_authorization_policies_from_related_apps(
                     ],
                 ),
                 MeshPolicy(
-                    source_app_name="source-app1",
                     source_namespace="source-namespace1",
-                    target_app_name="target-app1",
+                    source_app_name="source-app1",
                     target_namespace="target-namespace1",
+                    target_app_name="target-app1",
                     target_service="my-service1",
                     target_type=PolicyTargetType.app,
                     endpoints=[
@@ -144,10 +144,10 @@ def test_build_authorization_policies_app(
         (
             (
                 MeshPolicy(
-                    source_app_name="source-app0",
                     source_namespace="source-namespace0",
-                    target_app_name="target-app0",
+                    source_app_name="source-app0",
                     target_namespace="target-namespace0",
+                    target_app_name="target-app0",
                     target_type=PolicyTargetType.unit,
                     endpoints=[
                         Endpoint(
@@ -159,10 +159,10 @@ def test_build_authorization_policies_app(
                     ],
                 ),
                 MeshPolicy(
-                    source_app_name="source-app1",
                     source_namespace="source-namespace1",
-                    target_app_name="target-app1",
+                    source_app_name="source-app1",
                     target_namespace="target-namespace1",
+                    target_app_name="target-app1",
                     target_type=PolicyTargetType.unit,
                     endpoints=[
                         Endpoint(
@@ -174,8 +174,8 @@ def test_build_authorization_policies_app(
                     ],
                 ),
                 MeshPolicy(
-                    source_app_name="source-app2",
                     source_namespace="source-namespace2",
+                    source_app_name="source-app2",
                     target_namespace="target-namespace2",
                     target_workload_selector={"app": "my-app", "version": "v1"},
                     target_type=PolicyTargetType.unit,

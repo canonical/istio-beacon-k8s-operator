@@ -31,10 +31,10 @@ def harness():
             "beaconApp",
             "beaconNamespace",
             MeshPolicy(
-                source_app_name="senderApp",
                 source_namespace="senderNamespace",
-                target_app_name="targetApp",
+                source_app_name="senderApp",
                 target_namespace="targetNamespace",
+                target_app_name="targetApp",
                 target_service=None,
                 target_type=PolicyTargetType.app,
                 endpoints=[
@@ -43,17 +43,17 @@ def harness():
             ),
             # Note: if this test fails because the hash has changed, that means upgrading from a previous version to
             # this one will result in a delete/recreate of all policies.  Decide if that is acceptable.
-            "beaconApp-beaconNamespace-policy-senderApp-senderNamespace-targetApp-29df1647",
+            "beaconApp-beaconNamespace-policy-senderApp-senderNamespace-targetApp-45c1909f",
         ),
         # case with target service, multiple endpoints
         (
             "beaconApp",
             "beaconNamespace",
             MeshPolicy(
-                source_app_name="senderApp",
                 source_namespace="senderNamespace",
-                target_app_name="targetApp",
+                source_app_name="senderApp",
                 target_namespace="targetNamespace",
+                target_app_name="targetApp",
                 target_service="my-service",
                 target_type=PolicyTargetType.app,
                 endpoints=[
@@ -63,17 +63,17 @@ def harness():
             ),
             # Note: if this test fails because the hash has changed, that means upgrading from a previous version to
             # this one will result in a delete/recreate of all policies.  Decide if that is acceptable.
-            "beaconApp-beaconNamespace-policy-senderApp-senderNamespace-targetApp-b11524e6",
+            "beaconApp-beaconNamespace-policy-senderApp-senderNamespace-targetApp-09a3c68d",
         ),
         # case with truncation
         (
             "beaconApp012345678901234567890123456789012345678901234567890123",
             "beaconNamespace678901234567890123456789012345678901234567890123",
             MeshPolicy(
-                source_app_name="senderApp012345678901234567890123456789012345678901234567890123",
                 source_namespace="senderNamespace678901234567890123456789012345678901234567890123",
-                target_app_name="targetApp012345678901234567890123456789012345678901234567890123",
+                source_app_name="senderApp012345678901234567890123456789012345678901234567890123",
                 target_namespace="targetNamespace678901234567890123456789012345678901234567890123",
+                target_app_name="targetApp012345678901234567890123456789012345678901234567890123",
                 target_service="my-service",
                 target_type=PolicyTargetType.app,
                 endpoints=[
@@ -83,7 +83,7 @@ def harness():
             ),
             # Note: if this test fails because the hash has changed, that means upgrading from a previous version to
             # this one will result in a delete/recreate of all policies.  Decide if that is acceptable.
-            "beaconApp012345678901234567890123456789012345678901234567890123-beaconNamespace678901234567890123456789012345678901234567890123-policy-senderApp012345678901234567890-senderNamespace678901234567890-targetApp012345678901234567890-aa3a1272",
+            "beaconApp012345678901234567890123456789012345678901234567890123-beaconNamespace678901234567890123456789012345678901234567890123-policy-senderApp012345678901234567890-senderNamespace678901234567890-targetApp012345678901234567890-1cbbe4aa",
         ),
     ],
 )
