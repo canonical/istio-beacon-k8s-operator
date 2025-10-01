@@ -10,6 +10,7 @@ import scenario
 from charms.istio_beacon_k8s.v0.service_mesh import (
     AppPolicy,
     Endpoint,
+    MeshType,
     Policy,
     ServiceMeshConsumer,
     ServiceMeshProviderAppData,
@@ -436,10 +437,12 @@ def test_getting_relation_data(patched_reconcile: MagicMock):
     """Test that the consumer can read relation data set by a provider."""
     ctx = consumer_context([AppPolicy(relation="rela", endpoints=[ENDPOINT_A], service=None)])
     labels_actual = {"label1": "value1", "label2": "value2"}
+    mesh_type_actual = MeshType.istio
     expected_data = ServiceMeshProviderAppData(
-        labels=labels_actual
+        labels=labels_actual,
+        mesh_type=mesh_type_actual,
     )
-    mesh_relation = scenario.Relation(endpoint="service-mesh", interface="service_mesh", remote_app_data={"labels": json.dumps(labels_actual)})
+    mesh_relation = scenario.Relation(endpoint="service-mesh", interface="service_mesh", remote_app_data={"labels": json.dumps(labels_actual), "mesh_type": json.dumps(mesh_type_actual)})
     state = scenario.State(
         relations={
             mesh_relation,
@@ -451,4 +454,5 @@ def test_getting_relation_data(patched_reconcile: MagicMock):
         state,
     ) as manager:
         assert labels_actual == manager.charm.mesh.labels()
+        assert mesh_type_actual == manager.charm.mesh.mesh_type()
         assert expected_data == manager.charm.mesh._get_app_data()

@@ -1,7 +1,11 @@
 import json
 
 import scenario
-from charms.istio_beacon_k8s.v0.service_mesh import ServiceMeshProvider, ServiceMeshProviderAppData
+from charms.istio_beacon_k8s.v0.service_mesh import (
+    MeshType,
+    ServiceMeshProvider,
+    ServiceMeshProviderAppData,
+)
 from ops import CharmBase
 
 MESH_LABELS = {
@@ -10,6 +14,7 @@ MESH_LABELS = {
 }
 MESH_RELATION_NAME = "service-mesh-relation"
 MESH_INTERFACE_NAME = "service_mesh_interface"
+MESH_TYPE = MeshType.istio
 
 
 def provider_context() -> scenario.Context:
@@ -24,7 +29,12 @@ def provider_context() -> scenario.Context:
     class Charm(CharmBase):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
-            self.mesh = ServiceMeshProvider(self, labels=MESH_LABELS, mesh_relation_name=MESH_RELATION_NAME)
+            self.mesh = ServiceMeshProvider(
+                self,
+                labels=MESH_LABELS,
+                mesh_relation_name=MESH_RELATION_NAME,
+                mesh_type=MESH_TYPE
+            )
 
     return scenario.Context(Charm, meta)
 
@@ -43,3 +53,4 @@ def test_provider_sends_data():
     raw_data = {k: json.loads(v) for k, v in out.get_relation(mesh_relation.id).local_app_data.items()}
     actual = ServiceMeshProviderAppData.model_validate(raw_data)
     assert actual.labels == MESH_LABELS
+    assert actual.mesh_type == MESH_TYPE

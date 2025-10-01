@@ -292,6 +292,7 @@ class ServiceMeshProviderAppData(pydantic.BaseModel):
     """Data type for the application data provided by the provider side of the service-mesh interface."""
 
     labels: Dict[str, str]
+    mesh_type: MeshType
 
 
 class CMRData(pydantic.BaseModel):
@@ -426,6 +427,13 @@ class ServiceMeshConsumer(Object):
             return {}
         return app_data.labels
 
+    def mesh_type(self) -> Optional[MeshType]:
+        """Return the type of the service mesh."""
+        app_data = self._get_app_data()
+        if app_data is None:
+            return None
+        return app_data.mesh_type
+
     def _on_mesh_broken(self, _event):
         if not self._charm.unit.is_leader():
             return
@@ -471,10 +479,10 @@ class ServiceMeshProvider(Object):
     """Provide a service mesh to applications."""
 
     def __init__(
-        self, charm: CharmBase, labels: Dict[str, str], mesh_relation_name: str = "service-mesh"
         self,
         charm: CharmBase,
         labels: Dict[str, str],
+        mesh_type: MeshType,
         mesh_relation_name: str = "service-mesh",
     ):
         """Class used to provide information needed to join the service mesh.
@@ -482,6 +490,7 @@ class ServiceMeshProvider(Object):
         Args:
             charm: The charm instantiating this object.
             labels: The labels which related applications need to apply to use the mesh.
+            mesh_type: The type of this service mesh.
             mesh_relation_name: The relation name as defined in metadata.yaml or charmcraft.yaml
                 for the relation which uses the service_mesh interface.
         """
@@ -489,6 +498,7 @@ class ServiceMeshProvider(Object):
         self._charm = charm
         self._relation_name = mesh_relation_name
         self._labels = labels
+        self._mesh_type = mesh_type
         self.framework.observe(
             self._charm.on[mesh_relation_name].relation_created, self._relation_created
         )
@@ -500,9 +510,9 @@ class ServiceMeshProvider(Object):
         """Update all relations with the labels needed to use the mesh."""
         # Only the leader unit can update the application data bag
         if self._charm.unit.is_leader():
-            rel_data = json.dumps(self._labels)
             data = ServiceMeshProviderAppData(
                 labels=self._labels,
+                mesh_type=self._mesh_type
             ).model_dump(mode="json", by_alias=True, exclude_defaults=True, round_trip=True)
             # Flatten any nested objects, since relation databags are str:str mappings
             data = {k: json.dumps(v) for k, v in data.items()}
