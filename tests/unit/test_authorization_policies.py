@@ -173,6 +173,21 @@ def test_build_authorization_policies_app(
                         )
                     ],
                 ),
+                MeshPolicy(
+                    source_app_name="source-app2",
+                    source_namespace="source-namespace2",
+                    target_namespace="target-namespace2",
+                    target_workload_selector={"app": "my-app", "version": "v1"},
+                    target_type=PolicyTargetType.unit,
+                    endpoints=[
+                        Endpoint(
+                            hosts=None,
+                            ports=[8080],
+                            methods=None,  # type: ignore
+                            paths=None,
+                        )
+                    ],
+                ),
             ),
             "expected",
         )
@@ -199,7 +214,13 @@ def test_build_authorization_policies_unit(
         for i_mesh_policy, mesh_policy in enumerate(mesh_policies):
             if authorization_policies[i_mesh_policy] is not None:
                 assert authorization_policies[i_mesh_policy]["metadata"].namespace == mesh_policy.target_namespace  # type: ignore
-                assert authorization_policies[i_mesh_policy]["spec"]["selector"]["matchLabels"] == {"app.kubernetes.io/name": mesh_policy.target_app_name}  # type: ignore
+
+                # Check selector - should use workload selector if provided, otherwise use app name
+                if mesh_policy.target_workload_selector:
+                    assert authorization_policies[i_mesh_policy]["spec"]["selector"]["matchLabels"] == mesh_policy.target_workload_selector  # type: ignore
+                else:
+                    assert authorization_policies[i_mesh_policy]["spec"]["selector"]["matchLabels"] == {"app.kubernetes.io/name": mesh_policy.target_app_name}  # type: ignore
+
                 for i_endpoint, endpoint in enumerate(mesh_policy.endpoints):
                     operation = authorization_policies[i_mesh_policy]["spec"]["rules"][0]["to"][i_endpoint]["operation"]  # type: ignore
                     forbidden_attributes = ["hosts", "paths", "methods"]  # L7 attributes are forbidden in UnitPolicy

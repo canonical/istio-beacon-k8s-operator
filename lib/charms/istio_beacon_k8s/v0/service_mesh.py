@@ -184,7 +184,7 @@ POLICY_RESOURCE_TYPES = {
 
 LIBID = "3f40cb7e3569454a92ac2541c5ca0a0c"  # Never change this
 LIBAPI = 0
-LIBPATCH = 10
+LIBPATCH = 11
 
 PYDEPS = [
     "lightkube",
@@ -281,11 +281,47 @@ class MeshPolicy(pydantic.BaseModel):
 
     source_app_name: str
     source_namespace: str
-    target_app_name: str
     target_namespace: str
+    target_app_name: Optional[str] = None
+    target_workload_selector: Optional[Dict[str, str]] = None
     target_service: Optional[str] = None
     target_type: Literal[PolicyTargetType.app, PolicyTargetType.unit] = PolicyTargetType.app
     endpoints: List[Endpoint]
+
+    @pydantic.model_validator(mode="after")
+    def _validate(self):
+        """Validate cross field constraints for the mesh policy."""
+        if self.target_type == PolicyTargetType.app:
+            self._validate_app_policy()
+        elif self.target_type == PolicyTargetType.unit:
+            self._validate_unit_policy()
+        return self
+
+    def _validate_app_policy(self) -> None:
+        """Validate app-targeted policy constraints."""
+        if not any([self.target_app_name, self.target_service]):
+            raise ValueError(
+                f"Bad policy configuration. Neither target_app_name nor target_service "
+                f"specified for MeshPolicy with target_type {self.target_type}"
+            )
+        if self.target_workload_selector:
+            raise ValueError(
+                f"Bad policy configuration. MeshPolicy with target_type {self.target_type} "
+                f"does not support target_workload_selector."
+            )
+
+    def _validate_unit_policy(self) -> None:
+        """Validate unit-targeted policy constraints."""
+        if self.target_app_name and self.target_workload_selector:
+            raise ValueError(
+                f"Bad policy configuration. MeshPolicy with target_type {self.target_type} "
+                f"cannot specify both target_app_name and target_workload_selector."
+            )
+        if self.target_service:
+            raise ValueError(
+                f"Bad policy configuration. MeshPolicy with target_type {self.target_type} "
+                f"does not support target_service."
+            )
 
 
 class CMRData(pydantic.BaseModel):
@@ -670,6 +706,8 @@ def _generate_network_policy_name(app_name: str, model_name: str, mesh_policy: M
         """
         # omit target_app_namespace from the name here because that will be the namespace the policy is generated in, so
         # adding it here is redundant
+        target = mesh_policy.target_app_name or mesh_policy.target_service or "custom-selector"
+
         name = "-".join(
             [
                 app_name,
@@ -677,7 +715,7 @@ def _generate_network_policy_name(app_name: str, model_name: str, mesh_policy: M
                 "policy",
                 mesh_policy.source_app_name,
                 mesh_policy.source_namespace,
-                mesh_policy.target_app_name,
+                target,
                 _hash_pydantic_model(mesh_policy)[:8],
             ]
         )
@@ -693,7 +731,7 @@ def _generate_network_policy_name(app_name: str, model_name: str, mesh_policy: M
                     "policy",
                     mesh_policy.source_app_name[:30],
                     mesh_policy.source_namespace[:30],
-                    mesh_policy.target_app_name[:30],
+                    target[:30],
                     _hash_pydantic_model(mesh_policy)[:8],
                 ]
             )
@@ -714,9 +752,22 @@ def _build_policy_resources_istio(app_name: str, model_name: str, policies: List
                 if not valid_unit_policy:
                     logger.error(
                         f"UnitPolicy requested between {policy.source_app_name} and {policy.target_app_name} is not created as it contains some disallowed policy attributes."
-                        "UnitPolicy cannot contain paths, methods or hosts"
+                        "UnitPolicy for Istio service mesh cannot contain paths, methods or hosts"
                     )
                     continue
+
+                # Build match labels based on policy definition
+                workload_selector = None
+                if policy.target_app_name:
+                    workload_selector = WorkloadSelector(
+                        matchLabels={
+                            "app.kubernetes.io/name": policy.target_app_name,
+                        }
+                    )
+                if policy.target_workload_selector:
+                    workload_selector = WorkloadSelector(
+                        matchLabels=policy.target_workload_selector
+                    )
 
                 authorization_policies[i] = RESOURCE_TYPES["AuthorizationPolicy"](  # type: ignore
                     metadata=ObjectMeta(
@@ -724,11 +775,7 @@ def _build_policy_resources_istio(app_name: str, model_name: str, policies: List
                         namespace=policy.target_namespace,
                     ),
                     spec=AuthorizationPolicySpec(
-                        selector=WorkloadSelector(
-                            matchLabels={
-                                "app.kubernetes.io/name": policy.target_app_name,
-                            }
-                        ),
+                        selector=workload_selector,
                         rules=[
                             Rule(
                                 from_=[  # type: ignore # this is accessible via an alias
@@ -777,7 +824,7 @@ def _build_policy_resources_istio(app_name: str, model_name: str, policies: List
                             PolicyTargetReference(
                                 kind="Service",
                                 group="",
-                                name=target_service,
+                                name=target_service,  # type: ignore
                             )
                         ],
                         rules=[
@@ -955,7 +1002,7 @@ class PolicyResourceManager():
         charm: CharmBase,
         lightkube_client: Client,
         mesh_type: MeshType,
-        labels: Union[Optional[Dict], None] = None,
+        labels: Optional[Dict] = None,
         logger: Optional[logging.Logger] = None,
     ):
         self._app_name = charm.app.name
