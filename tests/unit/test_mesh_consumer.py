@@ -12,6 +12,7 @@ from charms.istio_beacon_k8s.v0.service_mesh import (
     Endpoint,
     Policy,
     ServiceMeshConsumer,
+    ServiceMeshProviderAppData,
     UnitPolicy,
     reconcile_charm_labels,
 )
@@ -427,3 +428,27 @@ def test_reconcile_charm_labels_configmap_created_on_404():
         )
         # Ensure the ConfigMap was created
         mock_init.assert_called_once()
+
+
+# No need to actually reconcile anything in this test.
+@patch("charms.istio_beacon_k8s.v0.service_mesh.reconcile_charm_labels")
+def test_getting_relation_data(patched_reconcile: MagicMock):
+    """Test that the consumer can read relation data set by a provider."""
+    ctx = consumer_context([AppPolicy(relation="rela", endpoints=[ENDPOINT_A], service=None)])
+    labels_actual = {"label1": "value1", "label2": "value2"}
+    expected_data = ServiceMeshProviderAppData(
+        labels=labels_actual
+    )
+    mesh_relation = scenario.Relation(endpoint="service-mesh", interface="service_mesh", remote_app_data={"labels": json.dumps(labels_actual)})
+    state = scenario.State(
+        relations={
+            mesh_relation,
+        },
+        leader=True,
+    )
+    with ctx(
+        ctx.on.relation_changed(relation=mesh_relation),
+        state,
+    ) as manager:
+        assert labels_actual == manager.charm.mesh.labels()
+        assert expected_data == manager.charm.mesh._get_app_data()
