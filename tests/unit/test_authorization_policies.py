@@ -22,10 +22,10 @@ def service_mesh_relation():
             "policies": json.dumps(
                 [
                     MeshPolicy(
-                        source_app_name="source-app1",
                         source_namespace="source-namespace1",
-                        target_app_name="target-app1",
+                        source_app_name="source-app1",
                         target_namespace="target-namespace1",
+                        target_app_name="target-app1",
                         target_service="my-service1",
                         target_type=PolicyTargetType.app,
                         endpoints=[
@@ -38,10 +38,10 @@ def service_mesh_relation():
                         ],
                     ).model_dump(),
                     MeshPolicy(
-                        source_app_name="source-app2",
                         source_namespace="source-namespace2",
-                        target_app_name="target-app2",
+                        source_app_name="source-app2",
                         target_namespace="target-namespace2",
+                        target_app_name="target-app2",
                         # target_service="my-service2",  # omit, which should get the default of target app name
                         target_type=PolicyTargetType.app,
                         endpoints=[
@@ -78,10 +78,10 @@ def test_get_authorization_policies_from_related_apps(
         (
             (
                 MeshPolicy(
-                    source_app_name="source-app0",
                     source_namespace="source-namespace0",
-                    target_app_name="target-app0",
+                    source_app_name="source-app0",
                     target_namespace="target-namespace0",
+                    target_app_name="target-app0",
                     target_type=PolicyTargetType.app,
                     endpoints=[
                         Endpoint(
@@ -93,10 +93,10 @@ def test_get_authorization_policies_from_related_apps(
                     ],
                 ),
                 MeshPolicy(
-                    source_app_name="source-app1",
                     source_namespace="source-namespace1",
-                    target_app_name="target-app1",
+                    source_app_name="source-app1",
                     target_namespace="target-namespace1",
+                    target_app_name="target-app1",
                     target_service="my-service1",
                     target_type=PolicyTargetType.app,
                     endpoints=[
@@ -144,10 +144,10 @@ def test_build_authorization_policies_app(
         (
             (
                 MeshPolicy(
-                    source_app_name="source-app0",
                     source_namespace="source-namespace0",
-                    target_app_name="target-app0",
+                    source_app_name="source-app0",
                     target_namespace="target-namespace0",
+                    target_app_name="target-app0",
                     target_type=PolicyTargetType.unit,
                     endpoints=[
                         Endpoint(
@@ -159,10 +159,10 @@ def test_build_authorization_policies_app(
                     ],
                 ),
                 MeshPolicy(
-                    source_app_name="source-app1",
                     source_namespace="source-namespace1",
-                    target_app_name="target-app1",
+                    source_app_name="source-app1",
                     target_namespace="target-namespace1",
+                    target_app_name="target-app1",
                     target_type=PolicyTargetType.unit,
                     endpoints=[
                         Endpoint(
@@ -170,6 +170,21 @@ def test_build_authorization_policies_app(
                             ports=[80],
                             methods=["GET"],  # type: ignore
                             paths=["/path1"],
+                        )
+                    ],
+                ),
+                MeshPolicy(
+                    source_namespace="source-namespace2",
+                    source_app_name="source-app2",
+                    target_namespace="target-namespace2",
+                    target_selector_labels={"app": "my-app", "version": "v1"},
+                    target_type=PolicyTargetType.unit,
+                    endpoints=[
+                        Endpoint(
+                            hosts=None,
+                            ports=[8080],
+                            methods=None,  # type: ignore
+                            paths=None,
                         )
                     ],
                 ),
@@ -199,7 +214,13 @@ def test_build_authorization_policies_unit(
         for i_mesh_policy, mesh_policy in enumerate(mesh_policies):
             if authorization_policies[i_mesh_policy] is not None:
                 assert authorization_policies[i_mesh_policy]["metadata"].namespace == mesh_policy.target_namespace  # type: ignore
-                assert authorization_policies[i_mesh_policy]["spec"]["selector"]["matchLabels"] == {"app.kubernetes.io/name": mesh_policy.target_app_name}  # type: ignore
+
+                # Check selector - should use workload selector if provided, otherwise use app name
+                if mesh_policy.target_selector_labels:
+                    assert authorization_policies[i_mesh_policy]["spec"]["selector"]["matchLabels"] == mesh_policy.target_selector_labels  # type: ignore
+                else:
+                    assert authorization_policies[i_mesh_policy]["spec"]["selector"]["matchLabels"] == {"app.kubernetes.io/name": mesh_policy.target_app_name}  # type: ignore
+
                 for i_endpoint, endpoint in enumerate(mesh_policy.endpoints):
                     operation = authorization_policies[i_mesh_policy]["spec"]["rules"][0]["to"][i_endpoint]["operation"]  # type: ignore
                     forbidden_attributes = ["hosts", "paths", "methods"]  # L7 attributes are forbidden in UnitPolicy

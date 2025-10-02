@@ -169,6 +169,7 @@ from lightkube.resources.core_v1 import ConfigMap, Service
 from lightkube_extensions.batch import KubernetesResourceManager
 from lightkube_extensions.types import LightkubeResourcesList
 from ops import CharmBase, Object, RelationMapping
+from pydantic import Field
 
 RESOURCE_TYPES = {
     "AuthorizationPolicy": create_namespaced_resource(
@@ -184,7 +185,7 @@ POLICY_RESOURCE_TYPES = {
 
 LIBID = "3f40cb7e3569454a92ac2541c5ca0a0c"  # Never change this
 LIBAPI = 0
-LIBPATCH = 11
+LIBPATCH = 12
 
 PYDEPS = [
     "lightkube",
@@ -279,13 +280,49 @@ class MeshPolicy(pydantic.BaseModel):
     defining a standard interface for charmed mesh managed policies.
     """
 
-    source_app_name: str
     source_namespace: str
-    target_app_name: str
+    source_app_name: str
     target_namespace: str
+    target_app_name: Optional[str] = None
+    target_selector_labels: Optional[Dict[str, str]] = None
     target_service: Optional[str] = None
     target_type: Literal[PolicyTargetType.app, PolicyTargetType.unit] = PolicyTargetType.app
-    endpoints: List[Endpoint]
+    endpoints: List[Endpoint] = Field(default_factory=list)
+
+    @pydantic.model_validator(mode="after")
+    def _validate(self):
+        """Validate cross field constraints for the mesh policy."""
+        if self.target_type == PolicyTargetType.app:
+            self._validate_app_policy()
+        elif self.target_type == PolicyTargetType.unit:
+            self._validate_unit_policy()
+        return self
+
+    def _validate_app_policy(self) -> None:
+        """Validate app-targeted policy constraints."""
+        if not any([self.target_app_name, self.target_service]):
+            raise ValueError(
+                f"Bad policy configuration. Neither target_app_name nor target_service "
+                f"specified for MeshPolicy with target_type {self.target_type}"
+            )
+        if self.target_selector_labels:
+            raise ValueError(
+                f"Bad policy configuration. MeshPolicy with target_type {self.target_type} "
+                f"does not support target_selector_labels."
+            )
+
+    def _validate_unit_policy(self) -> None:
+        """Validate unit-targeted policy constraints."""
+        if self.target_app_name and self.target_selector_labels:
+            raise ValueError(
+                f"Bad policy configuration. MeshPolicy with target_type {self.target_type} "
+                f"cannot specify both target_app_name and target_selector_labels."
+            )
+        if self.target_service:
+            raise ValueError(
+                f"Bad policy configuration. MeshPolicy with target_type {self.target_type} "
+                f"does not support target_service."
+            )
 
 
 class ServiceMeshProviderAppData(pydantic.BaseModel):
@@ -560,10 +597,10 @@ def build_mesh_policies(
             if isinstance(policy, UnitPolicy):
                 mesh_policies.append(
                     MeshPolicy(
-                        source_app_name=source_app_name,
                         source_namespace=source_namespace,
-                        target_app_name=target_app_name,
+                        source_app_name=source_app_name,
                         target_namespace=target_namespace,
+                        target_app_name=target_app_name,
                         target_service=None,
                         target_type=PolicyTargetType.unit,
                         endpoints=[
@@ -578,10 +615,10 @@ def build_mesh_policies(
             else:
                mesh_policies.append(
                     MeshPolicy(
-                        source_app_name=source_app_name,
                         source_namespace=source_namespace,
-                        target_app_name=target_app_name,
+                        source_app_name=source_app_name,
                         target_namespace=target_namespace,
+                        target_app_name=target_app_name,
                         target_service=policy.service,
                         target_type=PolicyTargetType.app,
                         endpoints=policy.endpoints,
@@ -703,12 +740,14 @@ def _generate_network_policy_name(app_name: str, model_name: str, mesh_policy: M
         """Generate a unique name for the network policy resource, suffixing a hash of the MeshPolicy to avoid collisions.
 
         The name has the following general format:
-            {app_name}-{model_name}-policy-{source_app_name}-{source_namespace}-{target_app_name}-{hash}
-        but source_app_name and target_app_name will be truncated if the total name exceeds Kubernetes's limit of 253
+            {app_name}-{model_name}-policy-{source_app_name}-{source_namespace}-{target_app_name/target_service/custom-selector}-{hash}
+        but source_app_name and the name of the target will be truncated if the total name exceeds Kubernetes's limit of 253
         characters.
         """
         # omit target_app_namespace from the name here because that will be the namespace the policy is generated in, so
         # adding it here is redundant
+        target = mesh_policy.target_app_name or mesh_policy.target_service or "custom-selector"
+
         name = "-".join(
             [
                 app_name,
@@ -716,7 +755,7 @@ def _generate_network_policy_name(app_name: str, model_name: str, mesh_policy: M
                 "policy",
                 mesh_policy.source_app_name,
                 mesh_policy.source_namespace,
-                mesh_policy.target_app_name,
+                target,
                 _hash_pydantic_model(mesh_policy)[:8],
             ]
         )
@@ -732,7 +771,7 @@ def _generate_network_policy_name(app_name: str, model_name: str, mesh_policy: M
                     "policy",
                     mesh_policy.source_app_name[:30],
                     mesh_policy.source_namespace[:30],
-                    mesh_policy.target_app_name[:30],
+                    target[:30],
                     _hash_pydantic_model(mesh_policy)[:8],
                 ]
             )
@@ -753,9 +792,22 @@ def _build_policy_resources_istio(app_name: str, model_name: str, policies: List
                 if not valid_unit_policy:
                     logger.error(
                         f"UnitPolicy requested between {policy.source_app_name} and {policy.target_app_name} is not created as it contains some disallowed policy attributes."
-                        "UnitPolicy cannot contain paths, methods or hosts"
+                        "UnitPolicy for Istio service mesh cannot contain paths, methods or hosts"
                     )
                     continue
+
+                # Build match labels based on policy definition
+                workload_selector = None
+                if policy.target_app_name:
+                    workload_selector = WorkloadSelector(
+                        matchLabels={
+                            "app.kubernetes.io/name": policy.target_app_name,
+                        }
+                    )
+                if policy.target_selector_labels:
+                    workload_selector = WorkloadSelector(
+                        matchLabels=policy.target_selector_labels
+                    )
 
                 authorization_policies[i] = RESOURCE_TYPES["AuthorizationPolicy"](  # type: ignore
                     metadata=ObjectMeta(
@@ -763,11 +815,7 @@ def _build_policy_resources_istio(app_name: str, model_name: str, policies: List
                         namespace=policy.target_namespace,
                     ),
                     spec=AuthorizationPolicySpec(
-                        selector=WorkloadSelector(
-                            matchLabels={
-                                "app.kubernetes.io/name": policy.target_app_name,
-                            }
-                        ),
+                        selector=workload_selector,
                         rules=[
                             Rule(
                                 from_=[  # type: ignore # this is accessible via an alias
@@ -803,7 +851,12 @@ def _build_policy_resources_istio(app_name: str, model_name: str, policies: List
                 if policy.target_service is None:
                     logger.info(
                         f"Got policy for application '{policy.target_app_name}' that has no target_service. "
-                        f"Defaulting to application name '{target_service}'."
+                        f"Defaulting to application name."
+                    )
+                if all([policy.target_service, policy.target_app_name]):
+                    logger.info(
+                        f"Got policy for application '{policy.target_app_name}' that has both target_service and target_app_name. "
+                        f"Using {target_service} for policy target definition."
                     )
 
                 authorization_policies[i] = RESOURCE_TYPES["AuthorizationPolicy"](  # type: ignore
@@ -816,7 +869,7 @@ def _build_policy_resources_istio(app_name: str, model_name: str, policies: List
                             PolicyTargetReference(
                                 kind="Service",
                                 group="",
-                                name=target_service,
+                                name=target_service,  # type: ignore
                             )
                         ],
                         rules=[
@@ -905,10 +958,10 @@ class PolicyResourceManager():
                 # policy to allow juju_app_a in juju_app_a_model to talk to juju_app_b in juju_app_b_model with a service
                 # name juju_app_b_service through its service address in ports 8080 and 443 to GET /foo and /bar paths.
                 MeshPolicy[
-                    source_app_name="juju_app_a",
                     source_namespace="juju_app_a_model",
-                    target_app_name="juju_app_b",
+                    source_app_name="juju_app_a",
                     target_namespace="juju_app_b_model",
+                    target_app_name="juju_app_b",
                     target_service="juju_app_b_service",
                     target_type=PolicyTargetType.app,
                     endpoints=[
@@ -922,10 +975,10 @@ class PolicyResourceManager():
                 # policy to allow juju_app_a in juju_app_a_model to talk to juju_app_c in juju_app_c_model with a service
                 # name same as the app name through its service address in ports 8080 and 443 to GET /foo.
                 MeshPolicy[
-                    source_app_name="juju_app_a",
                     source_namespace="juju_app_a_model",
-                    target_app_name="juju_app_c",
+                    source_app_name="juju_app_a",
                     target_namespace="juju_app_c_model",
+                    target_app_name="juju_app_c",
                     target_type=PolicyTargetType.app,
                     endpoints=[
                         Endpoint(
@@ -938,10 +991,10 @@ class PolicyResourceManager():
                 # policy to allow juju_app_a in juju_app_a_model to talk to juju_app_d in juju_app_d_model with a service
                 # through its pod address in ports 8080. For unit type policies paths and methods restrictions dont apply.
                 MeshPolicy[
-                    source_app_name="juju_app_a",
                     source_namespace="juju_app_a_model",
-                    target_app_name="juju_app_d",
+                    source_app_name="juju_app_a",
                     target_namespace="juju_app_d_model",
+                    target_app_name="juju_app_d",
                     target_type=PolicyTargetType.unit,
                     endpoints=[
                         Endpoint(
@@ -994,7 +1047,7 @@ class PolicyResourceManager():
         charm: CharmBase,
         lightkube_client: Client,
         mesh_type: MeshType,
-        labels: Union[Optional[Dict], None] = None,
+        labels: Optional[Dict] = None,
         logger: Optional[logging.Logger] = None,
     ):
         self._app_name = charm.app.name
@@ -1055,4 +1108,3 @@ class PolicyResourceManager():
             ignore_missing: *(optional)* Avoid raising 404 errors on deletion (defaults to True)
         """
         self._krm.delete(ignore_missing=ignore_missing)
-
