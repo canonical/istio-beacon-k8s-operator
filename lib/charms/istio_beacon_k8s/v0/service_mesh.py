@@ -184,7 +184,7 @@ POLICY_RESOURCE_TYPES = {
 
 LIBID = "3f40cb7e3569454a92ac2541c5ca0a0c"  # Never change this
 LIBAPI = 0
-LIBPATCH = 10
+LIBPATCH = 11
 
 PYDEPS = [
     "lightkube",
@@ -286,6 +286,13 @@ class MeshPolicy(pydantic.BaseModel):
     target_service: Optional[str] = None
     target_type: Literal[PolicyTargetType.app, PolicyTargetType.unit] = PolicyTargetType.app
     endpoints: List[Endpoint]
+
+
+class ServiceMeshProviderAppData(pydantic.BaseModel):
+    """Data type for the application data provided by the provider side of the service-mesh interface."""
+
+    labels: Dict[str, str]
+    mesh_type: MeshType
 
 
 class CMRData(pydantic.BaseModel):
@@ -400,11 +407,32 @@ class ServiceMeshConsumer(Object):
         # should consider if there is a better way to do this.
         return self._charm.model.name
 
+    def _get_app_data(self) -> Optional[ServiceMeshProviderAppData]:
+        """Return the relation data for the remote application."""
+        if self._relation is None or not self._relation.app:
+            return None
+
+        raw_data = self._relation.data[self._relation.app]
+        if len(raw_data) == 0:
+            return None
+
+        raw_data = {k: json.loads(v) for k, v in raw_data.items()}
+        return ServiceMeshProviderAppData.model_validate(raw_data)
+
+
     def labels(self) -> dict:
         """Labels required for a pod to join the mesh."""
-        if self._relation is None or "labels" not in self._relation.data[self._relation.app]:
+        app_data = self._get_app_data()
+        if app_data is None:
             return {}
-        return json.loads(self._relation.data[self._relation.app]["labels"])
+        return app_data.labels
+
+    def mesh_type(self) -> Optional[MeshType]:
+        """Return the type of the service mesh."""
+        app_data = self._get_app_data()
+        if app_data is None:
+            return None
+        return app_data.mesh_type
 
     def _on_mesh_broken(self, _event):
         if not self._charm.unit.is_leader():
@@ -451,20 +479,26 @@ class ServiceMeshProvider(Object):
     """Provide a service mesh to applications."""
 
     def __init__(
-        self, charm: CharmBase, labels: Dict[str, str], mesh_relation_name: str = "service-mesh"
+        self,
+        charm: CharmBase,
+        labels: Dict[str, str],
+        mesh_type: MeshType,
+        mesh_relation_name: str = "service-mesh",
     ):
         """Class used to provide information needed to join the service mesh.
 
         Args:
             charm: The charm instantiating this object.
+            labels: The labels which related applications need to apply to use the mesh.
+            mesh_type: The type of this service mesh.
             mesh_relation_name: The relation name as defined in metadata.yaml or charmcraft.yaml
                 for the relation which uses the service_mesh interface.
-            labels: The labels which related applications need to apply to use the mesh.
         """
         super().__init__(charm, mesh_relation_name)
         self._charm = charm
         self._relation_name = mesh_relation_name
         self._labels = labels
+        self._mesh_type = mesh_type
         self.framework.observe(
             self._charm.on[mesh_relation_name].relation_created, self._relation_created
         )
@@ -476,9 +510,14 @@ class ServiceMeshProvider(Object):
         """Update all relations with the labels needed to use the mesh."""
         # Only the leader unit can update the application data bag
         if self._charm.unit.is_leader():
-            rel_data = json.dumps(self._labels)
+            data = ServiceMeshProviderAppData(
+                labels=self._labels,
+                mesh_type=self._mesh_type
+            ).model_dump(mode="json", by_alias=True, exclude_defaults=True, round_trip=True)
+            # Flatten any nested objects, since relation databags are str:str mappings
+            data = {k: json.dumps(v) for k, v in data.items()}
             for relation in self._charm.model.relations[self._relation_name]:
-                relation.data[self._charm.app]["labels"] = rel_data
+                relation.data[self._charm.app].update(data)
 
     def mesh_info(self) -> List[MeshPolicy]:
         """Return the relation data that defines Policies requested by the related applications."""

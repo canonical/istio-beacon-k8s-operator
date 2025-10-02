@@ -117,7 +117,11 @@ class IstioBeaconCharm(ops.CharmBase):
         self.framework.observe(
             self.on.metrics_proxy_pebble_ready, self._metrics_proxy_pebble_ready
         )
-        self._mesh = ServiceMeshProvider(self, labels=self.mesh_labels_for_service_mesh_relation())
+        self._mesh = ServiceMeshProvider(
+            self,
+            labels=self.mesh_labels_for_service_mesh_relation(),
+            mesh_type=MeshType.istio,
+        )
 
         self.framework.observe(self.on["service-mesh"].relation_changed, self.on_mesh_changed)
         self.framework.observe(self.on["service-mesh"].relation_broken, self.on_mesh_broken)
