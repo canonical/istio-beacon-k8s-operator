@@ -442,7 +442,14 @@ def test_getting_relation_data(patched_reconcile: MagicMock):
         labels=labels_actual,
         mesh_type=mesh_type_actual,
     )
-    mesh_relation = scenario.Relation(endpoint="service-mesh", interface="service_mesh", remote_app_data={"labels": json.dumps(labels_actual), "mesh_type": json.dumps(mesh_type_actual)})
+    mesh_relation = scenario.Relation(
+        endpoint="service-mesh", 
+        interface="service_mesh", 
+        remote_app_data={
+            "labels": json.dumps(labels_actual), 
+            "mesh_type": json.dumps(mesh_type_actual)
+        }
+    )
     state = scenario.State(
         relations={
             mesh_relation,
