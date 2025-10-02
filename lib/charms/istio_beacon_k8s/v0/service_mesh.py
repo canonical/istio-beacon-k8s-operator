@@ -185,7 +185,7 @@ POLICY_RESOURCE_TYPES = {
 
 LIBID = "3f40cb7e3569454a92ac2541c5ca0a0c"  # Never change this
 LIBAPI = 0
-LIBPATCH = 11
+LIBPATCH = 12
 
 PYDEPS = [
     "lightkube",
