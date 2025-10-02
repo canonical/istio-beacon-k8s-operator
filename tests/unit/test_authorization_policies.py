@@ -177,7 +177,7 @@ def test_build_authorization_policies_app(
                     source_namespace="source-namespace2",
                     source_app_name="source-app2",
                     target_namespace="target-namespace2",
-                    target_workload_selector={"app": "my-app", "version": "v1"},
+                    target_selector_labels={"app": "my-app", "version": "v1"},
                     target_type=PolicyTargetType.unit,
                     endpoints=[
                         Endpoint(
@@ -216,8 +216,8 @@ def test_build_authorization_policies_unit(
                 assert authorization_policies[i_mesh_policy]["metadata"].namespace == mesh_policy.target_namespace  # type: ignore
 
                 # Check selector - should use workload selector if provided, otherwise use app name
-                if mesh_policy.target_workload_selector:
-                    assert authorization_policies[i_mesh_policy]["spec"]["selector"]["matchLabels"] == mesh_policy.target_workload_selector  # type: ignore
+                if mesh_policy.target_selector_labels:
+                    assert authorization_policies[i_mesh_policy]["spec"]["selector"]["matchLabels"] == mesh_policy.target_selector_labels  # type: ignore
                 else:
                     assert authorization_policies[i_mesh_policy]["spec"]["selector"]["matchLabels"] == {"app.kubernetes.io/name": mesh_policy.target_app_name}  # type: ignore
 

@@ -284,7 +284,7 @@ class MeshPolicy(pydantic.BaseModel):
     source_app_name: str
     target_namespace: str
     target_app_name: Optional[str] = None
-    target_workload_selector: Optional[Dict[str, str]] = None
+    target_selector_labels: Optional[Dict[str, str]] = None
     target_service: Optional[str] = None
     target_type: Literal[PolicyTargetType.app, PolicyTargetType.unit] = PolicyTargetType.app
     endpoints: List[Endpoint] = Field(default_factory=list)
@@ -305,18 +305,18 @@ class MeshPolicy(pydantic.BaseModel):
                 f"Bad policy configuration. Neither target_app_name nor target_service "
                 f"specified for MeshPolicy with target_type {self.target_type}"
             )
-        if self.target_workload_selector:
+        if self.target_selector_labels:
             raise ValueError(
                 f"Bad policy configuration. MeshPolicy with target_type {self.target_type} "
-                f"does not support target_workload_selector."
+                f"does not support target_selector_labels."
             )
 
     def _validate_unit_policy(self) -> None:
         """Validate unit-targeted policy constraints."""
-        if self.target_app_name and self.target_workload_selector:
+        if self.target_app_name and self.target_selector_labels:
             raise ValueError(
                 f"Bad policy configuration. MeshPolicy with target_type {self.target_type} "
-                f"cannot specify both target_app_name and target_workload_selector."
+                f"cannot specify both target_app_name and target_selector_labels."
             )
         if self.target_service:
             raise ValueError(
@@ -765,9 +765,9 @@ def _build_policy_resources_istio(app_name: str, model_name: str, policies: List
                             "app.kubernetes.io/name": policy.target_app_name,
                         }
                     )
-                if policy.target_workload_selector:
+                if policy.target_selector_labels:
                     workload_selector = WorkloadSelector(
-                        matchLabels=policy.target_workload_selector
+                        matchLabels=policy.target_selector_labels
                     )
 
                 authorization_policies[i] = RESOURCE_TYPES["AuthorizationPolicy"](  # type: ignore

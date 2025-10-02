@@ -51,19 +51,19 @@ from pydantic import ValidationError
             True,
             f"Bad policy configuration. Neither target_app_name nor target_service specified for MeshPolicy with target_type {PolicyTargetType.app}",
         ),
-        # Invalid app policy - has target_workload_selectors
+        # Invalid app policy - has target_selector_labels
         (
             {
                 "source_app_name": "source-app",
                 "source_namespace": "source-ns",
                 "target_namespace": "target-ns",
                 "target_app_name": "target-app",
-                "target_workload_selector": {"app": "my-app"},
+                "target_selector_labels": {"app": "my-app"},
                 "target_type": PolicyTargetType.app,
                 "endpoints": [Endpoint(ports=[80])],
             },
             True,
-            f"Bad policy configuration. MeshPolicy with target_type {PolicyTargetType.app} does not support target_workload_selector.",
+            f"Bad policy configuration. MeshPolicy with target_type {PolicyTargetType.app} does not support target_selector_labels.",
         ),
         # Valid unit policy with target_app_name
         (
@@ -78,32 +78,32 @@ from pydantic import ValidationError
             False,
             None,
         ),
-        # Valid unit policy with target_workload_selectors
+        # Valid unit policy with target_selector_labels
         (
             {
                 "source_app_name": "source-app",
                 "source_namespace": "source-ns",
                 "target_namespace": "target-ns",
-                "target_workload_selector": {"app": "my-app"},
+                "target_selector_labels": {"app": "my-app"},
                 "target_type": PolicyTargetType.unit,
                 "endpoints": [Endpoint(ports=[8080])],
             },
             False,
             None,
         ),
-        # Invalid unit policy - both target_app_name and target_workload_selectors
+        # Invalid unit policy - both target_app_name and target_selector_labels
         (
             {
                 "source_app_name": "source-app",
                 "source_namespace": "source-ns",
                 "target_namespace": "target-ns",
                 "target_app_name": "target-app",
-                "target_workload_selector": {"app": "my-app"},
+                "target_selector_labels": {"app": "my-app"},
                 "target_type": PolicyTargetType.unit,
                 "endpoints": [Endpoint(ports=[8080])],
             },
             True,
-            f"Bad policy configuration. MeshPolicy with target_type {PolicyTargetType.unit} cannot specify both target_app_name and target_workload_selector.",
+            f"Bad policy configuration. MeshPolicy with target_type {PolicyTargetType.unit} cannot specify both target_app_name and target_selector_labels.",
         ),
     ],
 )

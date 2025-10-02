@@ -43,7 +43,7 @@ def harness():
             ),
             # Note: if this test fails because the hash has changed, that means upgrading from a previous version to
             # this one will result in a delete/recreate of all policies.  Decide if that is acceptable.
-            "beaconApp-beaconNamespace-policy-senderApp-senderNamespace-targetApp-45c1909f",
+            "beaconApp-beaconNamespace-policy-senderApp-senderNamespace-targetApp-741a709a",
         ),
         # case with target service, multiple endpoints
         (
@@ -63,7 +63,7 @@ def harness():
             ),
             # Note: if this test fails because the hash has changed, that means upgrading from a previous version to
             # this one will result in a delete/recreate of all policies.  Decide if that is acceptable.
-            "beaconApp-beaconNamespace-policy-senderApp-senderNamespace-targetApp-09a3c68d",
+            "beaconApp-beaconNamespace-policy-senderApp-senderNamespace-targetApp-81db9c03",
         ),
         # case with truncation
         (
@@ -83,7 +83,7 @@ def harness():
             ),
             # Note: if this test fails because the hash has changed, that means upgrading from a previous version to
             # this one will result in a delete/recreate of all policies.  Decide if that is acceptable.
-            "beaconApp012345678901234567890123456789012345678901234567890123-beaconNamespace678901234567890123456789012345678901234567890123-policy-senderApp012345678901234567890-senderNamespace678901234567890-targetApp012345678901234567890-1cbbe4aa",
+            "beaconApp012345678901234567890123456789012345678901234567890123-beaconNamespace678901234567890123456789012345678901234567890123-policy-senderApp012345678901234567890-senderNamespace678901234567890-targetApp012345678901234567890-d9325e70",
         ),
     ],
 )
