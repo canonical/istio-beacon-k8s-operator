@@ -185,7 +185,7 @@ POLICY_RESOURCE_TYPES = {
 
 LIBID = "3f40cb7e3569454a92ac2541c5ca0a0c"  # Never change this
 LIBAPI = 0
-LIBPATCH = 12
+LIBPATCH = 13
 
 PYDEPS = [
     "lightkube",
@@ -560,7 +560,7 @@ class ServiceMeshProvider(Object):
         """Return the relation data that defines Policies requested by the related applications."""
         mesh_info = []
         for relation in self._charm.model.relations[self._relation_name]:
-            policies_data = json.loads(relation.data[relation.app]["policies"])
+            policies_data = json.loads(relation.data[relation.app].get("policies", "[]"))
             policies = [MeshPolicy.model_validate(policy) for policy in policies_data]
             mesh_info.extend(policies)
         return mesh_info
