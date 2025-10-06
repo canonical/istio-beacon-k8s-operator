@@ -1054,9 +1054,6 @@ class PolicyResourceManager():
     ):
         self._app_name = charm.app.name
         self._model_name = charm.model.name
-        # It should be possible to init the PRM without any mesh type.
-        # PRM should allow non-service mesh charms to identify and delete policies without any
-        # mesh_type. This can happen in the case of a departed service-mesh relation in on service mesh charms.
         self._mesh_type = mesh_type
         resource_types = self._get_all_supported_policy_resource_types()
 
@@ -1074,11 +1071,7 @@ class PolicyResourceManager():
     @staticmethod
     def _get_all_supported_policy_resource_types() -> LightkubeResourceTypesSet:  # type: ignore
         """Return all the resource types supported by the PRM class."""
-        # Flatten all resource types from all mesh types into one set
-        resource_types: LightkubeResourceTypesSet = set()  # type: ignore
-        for mesh_resource_types in POLICY_RESOURCE_TYPES.values():
-            resource_types.update(mesh_resource_types)
-        return resource_types
+        return set(RESOURCE_TYPES.values())
 
     def _get_policy_resource_builder(self):
         if self._mesh_type == MeshType.istio:
