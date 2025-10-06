@@ -47,8 +47,27 @@ def test_policy_resource_manager_reconcile_without_mesh_type_raises_error(mock_c
         )
     ]
 
-    with pytest.raises(ValueError, match="cannot reconcile policies for a None mesh_type"):
+    with pytest.raises(ValueError, match="PolicyResourceManager instantiated with an unknown mesh type"):
         prm.reconcile(policies)
+
+
+def test_policy_resource_manager_reconcile_empty_policies_calls_delete(mock_charm, mock_lightkube_client):
+    """Test reconcile calls delete when policies list is empty."""
+    with patch('charms.istio_beacon_k8s.v0.service_mesh.KubernetesResourceManager'):
+        prm = PolicyResourceManager(
+            charm=mock_charm,
+            lightkube_client=mock_lightkube_client,
+            mesh_type=None,  # Even with None mesh_type, empty policies should call delete
+        )
+
+        # Mock the _krm
+        prm._krm = MagicMock()
+
+        # Call reconcile with empty policies
+        prm.reconcile([])
+
+        # Should call delete instead of trying to build policies
+        prm._krm.delete.assert_called_once()
 
 
 def test_policy_resource_manager_delete_handles_404_error(mock_charm, mock_lightkube_client):

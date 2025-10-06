@@ -1083,7 +1083,7 @@ class PolicyResourceManager():
     def _get_policy_resource_builder(self):
         if self._mesh_type == MeshType.istio:
             return _build_policy_resources_istio
-        raise ValueError(f"PolicyResourceManager instantiated with an unknown mesh type: {self._mesh_type.value}. Check Canonical Service Mesh documentation for currently supported mesh types.")  # type: ignore
+        raise ValueError(f"PolicyResourceManager instantiated with an unknown mesh type: {self._mesh_type}. Check Canonical Service Mesh documentation for currently supported mesh types.")  # type: ignore
 
     def reconcile(self,
         policies: List[MeshPolicy],
@@ -1110,8 +1110,9 @@ class PolicyResourceManager():
                    marked as managed by another field manager.
             ignore_missing: *(optional)* Avoid raising 404 errors on deletion (defaults to True)
         """
-        if not self._mesh_type:
-            raise ValueError(f"PolicyResourceManager cannot reconcile policies for a {self._mesh_type} mesh_type.")
+        if not policies:
+            self.delete(ignore_missing=ignore_missing)
+            return
         mesh_typed_policy_resources_builder = self._get_policy_resource_builder()
         mesh_typed_policy_resources = mesh_typed_policy_resources_builder(self._app_name, self._model_name, policies)  # type: ignore
         self._krm.reconcile(mesh_typed_policy_resources, force=force, ignore_missing=ignore_missing)  # type: ignore
