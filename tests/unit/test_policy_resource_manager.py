@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, Mock, patch
 import httpx
 import pytest
 from charms.istio_beacon_k8s.v0.service_mesh import (
-    POLICY_RESOURCE_TYPES,
     Endpoint,
     MeshPolicy,
     MeshType,
@@ -27,42 +26,6 @@ def mock_charm():
 @pytest.fixture
 def mock_lightkube_client():
     return MagicMock()
-
-
-@patch('charms.istio_beacon_k8s.v0.service_mesh.KubernetesResourceManager')
-def test_policy_resource_manager_init_with_istio_mesh_type(mock_krm, mock_charm, mock_lightkube_client):
-    """Test PolicyResourceManager uses correct resource types when mesh_type is istio."""
-    _ = PolicyResourceManager(
-        charm=mock_charm,
-        lightkube_client=mock_lightkube_client,
-        mesh_type=MeshType.istio,
-    )
-
-    # Check that KRM was called with istio resource types
-    mock_krm.assert_called_once()
-    call_kwargs = mock_krm.call_args[1]
-    assert call_kwargs['resource_types'] == POLICY_RESOURCE_TYPES[MeshType.istio]
-
-
-@patch('charms.istio_beacon_k8s.v0.service_mesh.KubernetesResourceManager')
-def test_policy_resource_manager_init_without_mesh_type(mock_krm, mock_charm, mock_lightkube_client):
-    """Test PolicyResourceManager uses all resource types when mesh_type is None."""
-    _ = PolicyResourceManager(
-        charm=mock_charm,
-        lightkube_client=mock_lightkube_client,
-        mesh_type=None,
-    )
-
-    # Check that KRM was called with all supported resource types
-    mock_krm.assert_called_once()
-    call_kwargs = mock_krm.call_args[1]
-
-    # Should contain all resources from all mesh types
-    expected_resources = set()
-    for mesh_resources in POLICY_RESOURCE_TYPES.values():
-        expected_resources.update(mesh_resources)
-
-    assert call_kwargs['resource_types'] == expected_resources
 
 
 def test_policy_resource_manager_reconcile_without_mesh_type_raises_error(mock_charm, mock_lightkube_client):

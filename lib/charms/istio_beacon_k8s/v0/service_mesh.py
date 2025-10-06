@@ -1054,15 +1054,11 @@ class PolicyResourceManager():
     ):
         self._app_name = charm.app.name
         self._model_name = charm.model.name
-        self._mesh_type = mesh_type
-
         # It should be possible to init the PRM without any mesh type.
         # PRM should allow non-service mesh charms to identify and delete policies without any
         # mesh_type. This can happen in the case of a departed service-mesh relation in on service mesh charms.
-        if self._mesh_type:
-            resource_types = POLICY_RESOURCE_TYPES[self._mesh_type]
-        else:
-            resource_types = self._get_all_supported_policy_resource_types()
+        self._mesh_type = mesh_type
+        resource_types = self._get_all_supported_policy_resource_types()
 
         if logger is None:
             self.log = logging.getLogger(__name__)
