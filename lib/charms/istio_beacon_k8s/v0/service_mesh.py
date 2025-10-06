@@ -1085,6 +1085,11 @@ class PolicyResourceManager():
             return _build_policy_resources_istio
         raise ValueError(f"PolicyResourceManager instantiated with an unknown mesh type: {self._mesh_type}. Check Canonical Service Mesh documentation for currently supported mesh types.")  # type: ignore
 
+    def _build_policy_resources(self, policies) -> LightkubeResourcesList:
+        """Build the Lightkube resources for the managed policies."""
+        policy_resource_builder = self._get_policy_resource_builder()
+        return policy_resource_builder(self._app_name, self._model_name, policies)  # type: ignore
+
     def reconcile(self,
         policies: List[MeshPolicy],
         force=True,
@@ -1113,9 +1118,8 @@ class PolicyResourceManager():
         if not policies:
             self.delete(ignore_missing=ignore_missing)
             return
-        mesh_typed_policy_resources_builder = self._get_policy_resource_builder()
-        mesh_typed_policy_resources = mesh_typed_policy_resources_builder(self._app_name, self._model_name, policies)  # type: ignore
-        self._krm.reconcile(mesh_typed_policy_resources, force=force, ignore_missing=ignore_missing)  # type: ignore
+        policy_resources = self._build_policy_resources(policies)  # type: ignore
+        self._krm.reconcile(policy_resources, force=force, ignore_missing=ignore_missing)  # type: ignore
 
     def delete(self, ignore_missing=True):
         """Delete all the policy resources handled by this manager.
