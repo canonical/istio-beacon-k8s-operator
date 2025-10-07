@@ -217,7 +217,6 @@ class IstioBeaconCharm(ops.CharmBase):
         return PolicyResourceManager(
             self,
             lightkube_client=self.lightkube_client,
-            mesh_type=MeshType.istio,  # pyright: ignore
             labels=create_charm_default_labels(
                 self.app.name, self.model.name, scope=AUTHORIZATION_POLICY_LABEL
             ),
@@ -396,7 +395,7 @@ class IstioBeaconCharm(ops.CharmBase):
 
         # Manage charm (related to beacon) traffic authorization policies
         prm = self._get_authorization_policy_resource_manager()
-        prm.reconcile(mesh_policies)  # type: ignore
+        prm.reconcile(mesh_policies, MeshType.istio)  # type: ignore
         # Manage istio beacon's (modeoperator) authorization policies
         krm = self._get_modeloperator_policy_resource_manager()
         krm.reconcile(modeloperator_policies)  # type: ignore
