@@ -32,18 +32,18 @@ requires:
     limit: 1
     interface: service_mesh
     description: |
-      Subscribe this charm into a service mesh to enforce authorization policies.
+      Subscribe this charm to a service mesh and create authorization policies.
   require-cmr-mesh:
     interface: cross_model_mesh
     description: |
-      Allow a cross-model application access to catalogue via the service mesh.
+      Allow a cross-model application access to this charm via the service mesh.
       This relation provides additional data required by the service mesh to enforce cross-model authorization policies.
 
 provides:
   provide-cmr-mesh:
     interface: cross_model_mesh
     description: |
-      Access a cross-model application from catalogue via the service mesh.
+      Access a cross-model application from this charm via the service mesh.
       This relation provides additional data required by the service mesh to enforce cross-model authorization policies.
 ```
 
