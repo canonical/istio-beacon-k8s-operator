@@ -24,6 +24,11 @@ config:
       default: true
       description: |
         Used for `ServiceMeshConsumer`'s `auto_join` argument, which controls whether this charm will add itself to the mesh if there is a service_mesh relation established to a beacon.
+    use-wildcard-policy:
+      type: boolean
+      default: false
+      description: |
+        When enabled, creates a wildcard MeshPolicy that allows any source to access this application. Used for testing wildcard policy functionality.
 
 provides:
   inbound:

@@ -6,12 +6,17 @@ import logging
 from charms.istio_beacon_k8s.v0.service_mesh import (
     AppPolicy,
     Endpoint,
+    MeshPolicy,
+    MeshType,
+    PolicyResourceManager,
+    PolicyTargetType,
     ServiceMeshConsumer,
     UnitPolicy,
 )
+from lightkube import Client
 from ops.charm import CharmBase
 from ops.main import main
-from ops.model import ActiveStatus
+from ops.model import ActiveStatus, BlockedStatus
 from ops.pebble import Layer
 
 logger = logging.getLogger(__name__)
@@ -52,12 +57,31 @@ class ServiceMeshTester(CharmBase):
             auto_join=bool(self.config["auto-join-mesh"]),
         )
 
+        # Initialize PolicyResourceManager for wildcard policy support
+        self._policy_resource_manager = None
+        if bool(self.config["use-wildcard-policy"]):
+            try:
+                lightkube_client = Client(field_manager=f"{self.app.name}-{self.model.name}")
+                labels = {
+                    "app.kubernetes.io/name": f"{self.app.name}-{self.model.name}",
+                    "kubernetes-resource-handler-scope": "wildcard-policy-test",
+                }
+                self._policy_resource_manager = PolicyResourceManager(
+                    charm=self,  # type: ignore[arg-type]
+                    lightkube_client=lightkube_client,  # type: ignore[arg-type]
+                    labels=labels,
+                )
+            except Exception as e:
+                logger.error(f"Failed to initialize PolicyResourceManager: {e}")
+
         self.framework.observe(self.on.echo_server_pebble_ready, self.on_pebble_ready)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
+        self.framework.observe(self.on.leader_elected, self._reconcile_wildcard_policy)
 
     def _on_config_changed(self, event):
         if self.unit.is_leader():
             self._mesh.update_service_mesh()
+            self._reconcile_wildcard_policy(event)
 
     def on_pebble_ready(self, _):
         container = self.unit.get_container("echo-server")
@@ -84,6 +108,40 @@ class ServiceMeshTester(CharmBase):
         container.add_layer("echo-server", layer, combine=True)
         container.autostart()
         self.unit.status = ActiveStatus("Echo server running")
+
+    def _reconcile_wildcard_policy(self, event):
+        """Reconcile wildcard policy if configured."""
+        if not self.unit.is_leader():
+            return
+
+        if not bool(self.config["use-wildcard-policy"]):
+            logger.info("Wildcard policy disabled, skipping reconciliation")
+            return
+
+        if self._policy_resource_manager is None:
+            logger.error("PolicyResourceManager not initialized")
+            self.unit.status = BlockedStatus("PolicyResourceManager not initialized")
+            return
+
+        try:
+            # Create a wildcard MeshPolicy that allows any source to reach this app
+            wildcard_policy = MeshPolicy(
+                enforce_source=False,
+                target_namespace=self.model.name,
+                target_app_name=self.app.name,
+                target_type=PolicyTargetType.app,
+                endpoints=[
+                    Endpoint(
+                        ports=self._ports,
+                    )
+                ],
+            )
+            logger.info(f"Reconciling wildcard policy for {self.app.name}")
+            self._policy_resource_manager.reconcile([wildcard_policy], MeshType.istio)
+            logger.info("Wildcard policy reconciled successfully")
+        except Exception as e:
+            logger.error(f"Failed to reconcile wildcard policy: {e}")
+            self.unit.status = BlockedStatus(f"Failed to reconcile wildcard policy: {e}")
 
 
 if __name__ == "__main__":
