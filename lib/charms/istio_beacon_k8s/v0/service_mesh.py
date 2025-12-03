@@ -772,13 +772,13 @@ def _generate_network_policy_name(app_name: str, model_name: str, mesh_policy: M
             source_app = "any-source"
             source_namespace = "any-namespace"
 
-        name = "-".join(
+        name = "-".join(  # type: ignore[list-item]
             [
                 app_name,
                 model_name,
                 "policy",
-                source_app,
-                source_namespace,
+                source_app,  # type: ignore[list-item]
+                source_namespace,  # type: ignore[list-item]
                 target,
                 _hash_pydantic_model(mesh_policy)[:8],
             ]
@@ -793,8 +793,8 @@ def _generate_network_policy_name(app_name: str, model_name: str, mesh_policy: M
                     app_name,
                     model_name,
                     "policy",
-                    source_app[:30],
-                    source_namespace[:30],
+                    source_app[:30],  # type: ignore[index]
+                    source_namespace[:30],  # type: ignore[index]
                     target[:30],
                     _hash_pydantic_model(mesh_policy)[:8],
                 ]

@@ -294,7 +294,7 @@ def test_istio_source_clause_with_enforce_source():
     result = _build_istio_source_clause(enforced)
     assert result is not None
     assert len(result) == 1
-    assert result[0].source.principals[0] == "cluster.local/ns/src-ns/sa/src-app"
+    assert result[0].source.principals[0] == "cluster.local/ns/src-ns/sa/src-app"  # type: ignore[index]
 
 
 @pytest.mark.parametrize(
