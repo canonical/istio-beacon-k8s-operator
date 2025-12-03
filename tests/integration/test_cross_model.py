@@ -5,127 +5,120 @@
 
 """Tests that istio-beacon creates AuthorizationPolicies that enable traffic for charms related cross-model."""
 
-from dataclasses import asdict
-
 import pytest
 from helpers import (
     APP_NAME,
     RECEIVER,
-    RESOURCES,
     SENDER,
     assert_request_returns_http_code,
     istio_k8s,
 )
-from pytest_operator.plugin import ModelState, OpsTest
+from jubilant import Juju, all_active
 
 
 @pytest.fixture(scope="module")
-async def istio_system_model(ops_test: OpsTest) -> ModelState:
-    """Create and return a model for istio_system."""
-    assert ops_test.model
-    await ops_test.track_model("istio-system", model_name=f"{ops_test.model.name}-istio-system")
-    istio_system_model = ops_test.models.get("istio-system")
-    assert istio_system_model
-    return istio_system_model
+def sender_model(temp_model_factory):
+    """Create and return a Juju instance for the sender model."""
+    sender_model = temp_model_factory.get_juju("sender")
+    return sender_model
 
 
 @pytest.fixture(scope="module")
-async def sender_model(ops_test: OpsTest) -> ModelState:
-    """Create and return a model for the sender application."""
-    assert ops_test.model
-    await ops_test.track_model(SENDER, model_name=f"{ops_test.model.name}-{SENDER}")
-    istio_system_model = ops_test.models.get(SENDER)
-    assert istio_system_model
-    return istio_system_model
+def receiver_model(temp_model_factory):
+    """Create and return a Juju instance for the receiver model."""
+    receiver_model = temp_model_factory.get_juju("receiver")
+    return receiver_model
 
 
-@pytest.fixture(scope="module")
-async def receiver_model(ops_test: OpsTest) -> ModelState:
-    """Create and return a model for the receiver application."""
-    assert ops_test.model
-    await ops_test.track_model(RECEIVER, model_name=f"{ops_test.model.name}-{RECEIVER}")
-    istio_system_model = ops_test.models.get(RECEIVER)
-    assert istio_system_model
-    return istio_system_model
-
-
+@pytest.mark.setup
 @pytest.mark.abort_on_fail
-async def test_deploy_environment(
-    ops_test: OpsTest,
-    sender_model: ModelState,
-    receiver_model: ModelState,
-    istio_system_model: ModelState,
+def test_deploy_istio_dependencies(istio_juju: Juju):
+    """Deploy istio-k8s in istio-system model."""
+    # The istio_juju fixture handles deployment, this test just ensures it runs
+    # and validates istio-k8s is active
+    status = istio_juju.status()
+    assert istio_k8s.application_name in status.apps
+    assert status.apps[istio_k8s.application_name].is_active
+
+
+@pytest.mark.setup
+@pytest.mark.abort_on_fail
+def test_deploy_environment(
+    sender_model: Juju,
+    receiver_model: Juju,
     istio_beacon_charm,
+    istio_beacon_resources,
     service_mesh_tester,
 ):
-    """Deploy the istio-k8s, two models for sender and receiver, and the istio-beacon charm in each model.
+    """Deploy the istio-beacon charm and testers in sender and receiver models.
 
     Asserts that these come to active, but does not assert that policies are created correctly.
     """
-    # Deploy the istio-k8s charm in the istio-system model
-    await istio_system_model.model.deploy(**asdict(istio_k8s))
-    await istio_system_model.model.wait_for_idle(
-        [istio_k8s.application_name], status="active", timeout=1000
-    )
-
-    # Deploy the istio-beacon and sender in the sender models
-    await sender_model.model.deploy(
-        istio_beacon_charm, resources=RESOURCES, application_name=APP_NAME, trust=True, config={"model-on-mesh": "true"}
+    # Deploy the istio-beacon and sender in the sender model
+    sender_model.deploy(
+        istio_beacon_charm,
+        app=APP_NAME,
+        resources=istio_beacon_resources,
+        trust=True,
+        config={"model-on-mesh": "true"},
     )
     resources = {"echo-server-image": "jmalloc/echo-server:v0.3.7"}
-    await sender_model.model.deploy(
-        service_mesh_tester, application_name=SENDER, resources=resources, trust=True
+    sender_model.deploy(
+        service_mesh_tester,
+        app=SENDER,
+        resources=resources,
+        trust=True,
     )
 
-    # Deploy the istio-beacon and receiver in the receiver models
-    await receiver_model.model.deploy(
-        istio_beacon_charm, resources=RESOURCES, application_name=APP_NAME, trust=True, config={"model-on-mesh": "true"}
+    # Deploy the istio-beacon and receiver in the receiver model
+    receiver_model.deploy(
+        istio_beacon_charm,
+        app=APP_NAME,
+        resources=istio_beacon_resources,
+        trust=True,
+        config={"model-on-mesh": "true"},
     )
-    resources = {"echo-server-image": "jmalloc/echo-server:v0.3.7"}
-    await receiver_model.model.deploy(
-        service_mesh_tester, application_name=RECEIVER, resources=resources, trust=True
+    receiver_model.deploy(
+        service_mesh_tester,
+        app=RECEIVER,
+        resources=resources,
+        trust=True,
     )
 
-    # Establish the cross-model relations
-    outbound = "outbound"
-    cmr = "require-cmr-mesh"
-    # For some reason, using model.create_offer is flaky.  We observe in beacon logs:
-    # "ops.model.ModelError: ERROR read tcp 10.1.253.231:37698->10.152.183.160:17070: read: connection reset by peer"
-    # The beacon charm itself recovers correctly after this, but when this occurs it causes the model.create_offer()
-    # call to fail.  If we use the juju CLI instead, we don't get this premature failure.
-    # await sender_modelstate.model.create_offer(
-    #     endpoint=relation,
-    #     offer_name=relation,
-    #     application_name=SENDER,
-    # )
     # Offer everything that the receiver needs to consume in a single offer
-    await ops_test.juju(
+    sender_model.cli(
         "offer",
-        f"{sender_model.model.name}.{SENDER}:{outbound},{cmr}",
+        f"{sender_model.model}.{SENDER}:outbound,require-cmr-mesh",
+        include_model=False,
     )
-    await ops_test.juju(
+    receiver_model.cli(
         "consume",
-        "--model", receiver_model.model.name,
-        f"admin/{sender_model.model.name}.{SENDER}"
+        f"admin/{sender_model.model}.{SENDER}",
     )
-    await receiver_model.model.add_relation(
-        f"{SENDER}:{outbound}", f"{RECEIVER}:inbound"
+    receiver_model.integrate(
+        f"{SENDER}:outbound",
+        f"{RECEIVER}:inbound",
     )
-    await receiver_model.model.add_relation(
-        f"{SENDER}:{cmr}", f"{RECEIVER}:provide-cmr-mesh"
+    receiver_model.integrate(
+        f"{SENDER}:require-cmr-mesh",
+        f"{RECEIVER}:provide-cmr-mesh",
     )
 
     # Establish the relation between the istio-beacon and the receiver
-    await receiver_model.model.add_relation(
-        APP_NAME, RECEIVER,
-    )
+    receiver_model.integrate(APP_NAME, RECEIVER)
 
     # Wait for everything to settle
-    await sender_model.model.wait_for_idle(
-        [APP_NAME, SENDER], status="active", timeout=1000, raise_on_error=False
+    sender_model.wait(
+        lambda s: all_active(s, APP_NAME, SENDER),
+        timeout=1000,
+        delay=5,
+        successes=3,
     )
-    await receiver_model.model.wait_for_idle(
-        [APP_NAME, RECEIVER], status="active", timeout=1000, raise_on_error=False
+    receiver_model.wait(
+        lambda s: all_active(s, APP_NAME, RECEIVER),
+        timeout=1000,
+        delay=5,
+        successes=3,
     )
 
 
@@ -140,12 +133,15 @@ async def test_deploy_environment(
     ]
 )
 def test_sender_can_talk_to_receiver(
-    sender_model: ModelState,
-    receiver_model: ModelState,
+    sender_model: Juju,
+    receiver_model: Juju,
     path: str,
     code: int,
 ):
     """Test that the single related sender can talk to the receiver at the expected paths."""
     assert_request_returns_http_code(
-        sender_model.model.name, f"{SENDER}/0", f"http://{RECEIVER}.{receiver_model.model.name}:8080{path}", code=code
+        sender_model,
+        f"{SENDER}/0",
+        f"http://{RECEIVER}.{receiver_model.model}:8080{path}",
+        code=code,
     )

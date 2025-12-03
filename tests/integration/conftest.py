@@ -3,79 +3,76 @@
 # Copyright 2024 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-import functools
-import logging
 import os
 import shutil
-from collections import defaultdict
-from datetime import datetime
 from pathlib import Path
 
 import pytest
-from pytest_operator.plugin import OpsTest
-
-logger = logging.getLogger(__name__)
-
-
-class Store(defaultdict):
-    def __init__(self):
-        super(Store, self).__init__(Store)
-
-    def __getattr__(self, key):
-        """Override __getattr__ so dot syntax works on keys."""
-        try:
-            return self[key]
-        except KeyError:
-            raise AttributeError(key)
-
-    def __setattr__(self, key, value):
-        """Override __setattr__ so dot syntax works on keys."""
-        self[key] = value
+from helpers import istio_k8s
+from jubilant import all_active
+from pytest_jubilant import get_resources, pack
 
 
-store = Store()
-
-
-def timed_memoizer(func):
-    @functools.wraps(func)
-    async def wrapper(*args, **kwargs):
-        fname = func.__qualname__
-        logger.info("Started: %s" % fname)
-        start_time = datetime.now()
-        if fname in store.keys():
-            ret = store[fname]
-        else:
-            logger.info("Return for {} not cached".format(fname))
-            ret = await func(*args, **kwargs)
-            store[fname] = ret
-        logger.info("Finished: {} in: {} seconds".format(fname, datetime.now() - start_time))
-        return ret
-
-    return wrapper
-
-
-@pytest.fixture(scope="module")
-@timed_memoizer
-async def istio_beacon_charm(ops_test: OpsTest):
+@pytest.fixture(scope="session")
+def istio_beacon_charm():
+    """Build istio-beacon charm once per session."""
     if charm_file := os.environ.get("CHARM_PATH"):
         return Path(charm_file)
 
-    charm = await ops_test.build_charm(".", verbosity="debug")
+    charm = pack()
     return charm
 
 
-@pytest.fixture(scope="module")
-@timed_memoizer
-async def service_mesh_tester(ops_test: OpsTest):
-    charm_path = (Path(__file__).parent / "testers" / "service-mesh-tester").absolute()
+@pytest.fixture(scope="session")
+def istio_beacon_resources():
+    """Extract resources from charmcraft.yaml."""
+    return get_resources(".")
 
-    # Update libraries in the tester charms
+
+@pytest.fixture(scope="session")
+def service_mesh_tester():
+    """Build service-mesh-tester charm once per session."""
+    charm_path = Path(__file__).parent / "testers" / "service-mesh-tester"
+
+    # Update libraries in the tester charm from root lib folder
     root_lib_folder = Path(__file__).parent.parent.parent / "lib"
     tester_lib_folder = charm_path / "lib"
 
-    if os.path.exists(tester_lib_folder):
+    if tester_lib_folder.exists():
         shutil.rmtree(tester_lib_folder)
     shutil.copytree(root_lib_folder, tester_lib_folder)
 
-    charm = await ops_test.build_charm(charm_path, verbosity="debug")
+    charm = pack(str(charm_path))
     return charm
+
+
+@pytest.fixture(scope="session")
+def tester_resources():
+    """Extract tester charm resources."""
+    return get_resources("./tests/integration/testers/service-mesh-tester")
+
+
+@pytest.fixture(scope="module")
+def istio_juju(temp_model_factory):
+    """Deploy istio-k8s in istio-system model."""
+    # Use temp_model_factory to create model - automatically respects --keep-models
+    istio_juju_model = temp_model_factory.get_juju("istio-system")
+
+    # Deploy istio-k8s
+    istio_juju_model.deploy(
+        charm=istio_k8s.entity_url,
+        app=istio_k8s.application_name,
+        channel=istio_k8s.channel,
+        trust=istio_k8s.trust,
+        config=istio_k8s.config,
+    )
+
+    # Wait for istio-k8s to be active
+    istio_juju_model.wait(
+        lambda s: all_active(s, istio_k8s.application_name),
+        timeout=1000,
+        delay=5,
+        successes=3,
+    )
+
+    return istio_juju_model
