@@ -43,7 +43,7 @@ def harness():
             ),
             # Note: if this test fails because the hash has changed, that means upgrading from a previous version to
             # this one will result in a delete/recreate of all policies.  Decide if that is acceptable.
-            "beaconApp-beaconNamespace-policy-senderApp-senderNamespace-targetApp-741a709a",
+            "beaconApp-beaconNamespace-policy-senderApp-senderNamespace-targetApp-4ed38728",
         ),
         # case with target service, multiple endpoints
         (
@@ -63,7 +63,7 @@ def harness():
             ),
             # Note: if this test fails because the hash has changed, that means upgrading from a previous version to
             # this one will result in a delete/recreate of all policies.  Decide if that is acceptable.
-            "beaconApp-beaconNamespace-policy-senderApp-senderNamespace-targetApp-81db9c03",
+            "beaconApp-beaconNamespace-policy-senderApp-senderNamespace-targetApp-0cc4fb94",
         ),
         # case with truncation
         (
@@ -83,7 +83,20 @@ def harness():
             ),
             # Note: if this test fails because the hash has changed, that means upgrading from a previous version to
             # this one will result in a delete/recreate of all policies.  Decide if that is acceptable.
-            "beaconApp012345678901234567890123456789012345678901234567890123-beaconNamespace678901234567890123456789012345678901234567890123-policy-senderApp012345678901234567890-senderNamespace678901234567890-targetApp012345678901234567890-d9325e70",
+            "beaconApp012345678901234567890123456789012345678901234567890123-beaconNamespace678901234567890123456789012345678901234567890123-policy-senderApp012345678901234567890-senderNamespace678901234567890-targetApp012345678901234567890-007dc7c5",
+        ),
+        # Wildcard policy - enforce_source=False
+        (
+            "beaconApp",
+            "beaconNamespace",
+            MeshPolicy(
+                enforce_source=False,
+                target_namespace="targetNamespace",
+                target_app_name="targetApp",
+                target_type=PolicyTargetType.app,
+                endpoints=[Endpoint(ports=[80])],
+            ),
+            "beaconApp-beaconNamespace-policy-any-source-any-namespace-targetApp-149a36c3",
         ),
     ],
 )

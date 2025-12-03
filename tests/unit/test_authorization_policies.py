@@ -9,7 +9,10 @@ from charms.istio_beacon_k8s.v0.service_mesh import (
     Endpoint,
     MeshPolicy,
     PolicyTargetType,
+    _build_app_policy_istio,
+    _build_istio_source_clause,
     _build_policy_resources_istio,
+    _build_unit_policy_istio,
 )
 
 
@@ -266,3 +269,54 @@ def test_charm_creates_authorization_policies_on_relation_changed(
     else:
         # Assert that we have passed exactly 0 AuthorizationPolicies in that list
         assert len(reconciler.call_args.args[0]) == 0
+
+
+def test_istio_source_clause_with_enforce_source():
+    """Test _build_istio_source_clause returns None for wildcard, From for enforced."""
+    # Wildcard policy
+    wildcard = MeshPolicy(
+        enforce_source=False,
+        target_namespace="ns",
+        target_app_name="app",
+        target_type=PolicyTargetType.app,
+    )
+    assert _build_istio_source_clause(wildcard) is None
+
+    # Enforced policy
+    enforced = MeshPolicy(
+        source_namespace="src-ns",
+        source_app_name="src-app",
+        enforce_source=True,
+        target_namespace="ns",
+        target_app_name="app",
+        target_type=PolicyTargetType.app,
+    )
+    result = _build_istio_source_clause(enforced)
+    assert result is not None
+    assert len(result) == 1
+    assert result[0].source.principals[0] == "cluster.local/ns/src-ns/sa/src-app"
+
+
+@pytest.mark.parametrize(
+    "target_type,policy_builder",
+    [
+        (PolicyTargetType.unit, _build_unit_policy_istio),
+        (PolicyTargetType.app, _build_app_policy_istio),
+    ],
+)
+def test_istio_policy_builders_wildcard_omits_from_clause(target_type, policy_builder):
+    """Test both L4 and L7 builders omit 'from' clause for wildcard policies."""
+    policy = MeshPolicy(
+        enforce_source=False,
+        target_namespace="tgt-ns",
+        target_app_name="tgt-app",
+        target_type=target_type,
+        endpoints=[Endpoint(ports=[8080])],
+    )
+
+    auth_policy = policy_builder("app", "model", policy)
+
+    # Verify from_ is None or omitted
+    spec = auth_policy["spec"]
+    from_clause = spec["rules"][0].get("from")
+    assert from_clause is None

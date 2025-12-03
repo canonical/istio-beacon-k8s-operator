@@ -70,6 +70,7 @@ WITH_COMPLEX_ENDPOINTS = (
     [
         {
             "source_app_name": "remote_a",
+            "enforce_source": True,
             "source_namespace": "my_model",
             "target_app_name": "consumer-charm",
             "target_namespace": "my_model",
@@ -102,6 +103,7 @@ MULTIPLE_POLICIES = (
     [
         {
             "source_app_name": "remote_a",
+            "enforce_source": True,
             "source_namespace": "my_model",
             "target_app_name": "consumer-charm",
             "target_namespace": "my_model",
@@ -112,6 +114,7 @@ MULTIPLE_POLICIES = (
         },
         {
             "source_app_name": "remote_c",
+            "enforce_source": True,
             "source_namespace": "my_model",
             "target_app_name": "consumer-charm",
             "target_namespace": "my_model",
@@ -128,6 +131,7 @@ REQUIRER = (
     [
         {
             "source_app_name": "remote_a",
+            "enforce_source": True,
             "source_namespace": "my_model",
             "target_app_name": "consumer-charm",
             "target_namespace": "my_model",
@@ -144,6 +148,7 @@ REQUIRER_CMR = (
     [
         {
             "source_app_name": "remote_b",
+            "enforce_source": True,
             "source_namespace": "remote_model",
             "target_app_name": "consumer-charm",
             "target_namespace": "my_model",
@@ -160,6 +165,7 @@ PROVIDER = (
     [
         {
             "source_app_name": "remote_c",
+            "enforce_source": True,
             "source_namespace": "my_model",
             "target_app_name": "consumer-charm",
             "target_namespace": "my_model",
@@ -176,6 +182,7 @@ PROVIDER_CMR = (
     [
         {
             "source_app_name": "remote_d",
+            "enforce_source": True,
             "source_namespace": "remote_model",
             "target_app_name": "consumer-charm",
             "target_namespace": "my_model",
@@ -193,6 +200,7 @@ POLICY_DEPRECATED = (
     [
         {
             "source_app_name": "remote_a",
+            "enforce_source": True,
             "source_namespace": "my_model",
             "target_app_name": "consumer-charm",
             "target_namespace": "my_model",
@@ -209,6 +217,7 @@ UNIT_POLICY = (
     [
         {
             "source_app_name": "remote_a",
+            "enforce_source": True,
             "source_namespace": "my_model",
             "target_app_name": "consumer-charm",
             "target_namespace": "my_model",

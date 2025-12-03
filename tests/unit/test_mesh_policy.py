@@ -105,6 +105,57 @@ from pydantic import ValidationError
             True,
             f"Bad policy configuration. MeshPolicy with target_type {PolicyTargetType.unit} cannot specify both target_app_name and target_selector_labels.",
         ),
+        # Valid wildcard app policy - enforce_source=False, no source fields required
+        (
+            {
+                "enforce_source": False,
+                "target_namespace": "target-ns",
+                "target_app_name": "target-app",
+                "target_type": PolicyTargetType.app,
+                "endpoints": [Endpoint(ports=[80])],
+            },
+            False,
+            None,
+        ),
+        # Invalid policy - enforce_source=True but missing source_app_name
+        (
+            {
+                "enforce_source": True,
+                "source_namespace": "source-ns",
+                "target_namespace": "target-ns",
+                "target_app_name": "target-app",
+                "target_type": PolicyTargetType.app,
+                "endpoints": [Endpoint(ports=[80])],
+            },
+            True,
+            "must be specified when enforce_source=True",
+        ),
+        # Invalid policy - enforce_source=True but missing source_namespace
+        (
+            {
+                "enforce_source": True,
+                "source_app_name": "source-app",
+                "target_namespace": "target-ns",
+                "target_app_name": "target-app",
+                "target_type": PolicyTargetType.app,
+                "endpoints": [Endpoint(ports=[80])],
+            },
+            True,
+            "must be specified when enforce_source=True",
+        ),
+        # Valid policy - enforce_source defaults to True, sources provided
+        (
+            {
+                "source_app_name": "source-app",
+                "source_namespace": "source-ns",
+                "target_namespace": "target-ns",
+                "target_app_name": "target-app",
+                "target_type": PolicyTargetType.app,
+                "endpoints": [Endpoint(ports=[80])],
+            },
+            False,
+            None,
+        ),
     ],
 )
 def test_mesh_policy_validation(policy_data, should_raise, error_message):
@@ -115,4 +166,5 @@ def test_mesh_policy_validation(policy_data, should_raise, error_message):
         assert error_message in str(exc_info.value)
     else:
         policy = MeshPolicy(**policy_data)
-        assert policy.source_app_name == "source-app"
+        # Verify the policy was created successfully
+        assert policy.target_namespace == policy_data["target_namespace"]
