@@ -9,6 +9,8 @@ from charms.istio_beacon_k8s.v0.service_mesh import (
     MeshType,
     PolicyResourceManager,
 )
+from lightkube.models.meta_v1 import ObjectMeta
+from lightkube_extensions.types import AuthorizationPolicy
 from ops import CharmBase
 
 
@@ -63,3 +65,51 @@ def test_policy_resource_manager_delete_handles_404_error(mock_charm, mock_light
         prm.delete(ignore_missing=True)
 
         prm.log.info.assert_called_once_with("CRD not found, skipping deletion")
+
+
+def test_policy_resource_manager_reconcile_with_raw_policies_does_not_delete(mock_charm, mock_lightkube_client):
+    """Test reconcile with empty policies but raw_policies provided does NOT call delete."""
+    with patch('charms.istio_beacon_k8s.v0.service_mesh.KubernetesResourceManager'):
+        prm = PolicyResourceManager(
+            charm=mock_charm,
+            lightkube_client=mock_lightkube_client,
+        )
+
+        prm._krm = MagicMock()
+
+        # Create a raw AuthorizationPolicy
+        raw_policy = AuthorizationPolicy(
+            metadata=ObjectMeta(name="test-policy", namespace="test-ns"),
+            spec={"rules": []},
+        )
+
+        # Call reconcile with empty policies but with raw_policies
+        prm.reconcile([], MeshType.istio, raw_policies=[raw_policy])
+
+        # Should NOT call delete - should call reconcile instead
+        prm._krm.delete.assert_not_called()
+        prm._krm.reconcile.assert_called_once()
+        # Verify raw_policy was passed to krm.reconcile
+        reconciled_resources = prm._krm.reconcile.call_args[0][0]
+        assert len(reconciled_resources) == 1
+        assert reconciled_resources[0].metadata.name == "test-policy"
+
+
+def test_policy_resource_manager_validate_raw_policies_rejects_unsupported_type(mock_charm, mock_lightkube_client):
+    """Test that raw_policies with unsupported type raises TypeError."""
+    with patch('charms.istio_beacon_k8s.v0.service_mesh.KubernetesResourceManager'):
+        prm = PolicyResourceManager(
+            charm=mock_charm,
+            lightkube_client=mock_lightkube_client,
+        )
+
+        prm._krm = MagicMock()
+        prm.log = MagicMock()
+
+        # Create an object of wrong type (not AuthorizationPolicy)
+        wrong_type_policy = MagicMock()
+        wrong_type_policy.__class__.__name__ = "WrongType"
+
+        # Should raise TypeError
+        with pytest.raises(TypeError, match="not a supported policy resource type"):
+            prm.reconcile([], MeshType.istio, raw_policies=[wrong_type_policy])
