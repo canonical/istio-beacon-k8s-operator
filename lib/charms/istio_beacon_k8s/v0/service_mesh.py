@@ -1085,7 +1085,7 @@ class PolicyResourceManager():
         """
         supported_types = self._get_all_supported_policy_resource_types()
         if not supported_types:
-            return
+            raise RuntimeError("No supported policy resource types found in PolicyResourceManager.")
         for policy in raw_policies:
             if type(policy) not in supported_types:
                 self.log.error(
