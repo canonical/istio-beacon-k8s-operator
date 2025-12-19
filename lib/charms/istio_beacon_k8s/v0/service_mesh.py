@@ -186,8 +186,7 @@ PYDEPS = [
     "lightkube",
     "pydantic",
     "charmed-service-mesh-helpers",
-    # FIXME: Remove pin before merging.
-    "lightkube-extensions@git+https://github.com/canonical/lightkube-extensions.git@feat/SMS-576-enable_raw_policy_reconciliation",
+    "lightkube-extensions",
 ]
 
 logger = logging.getLogger(__name__)

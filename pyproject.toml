@@ -9,7 +9,7 @@ dependencies = [
     "charmed-service-mesh-helpers>=0.2.0",
     "ops~=2.5",
     "pydantic>=2",
-    "lightkube-extensions@git+https://github.com/canonical/lightkube-extensions.git@feat/SMS-576-enable_raw_policy_reconciliation",
+    "lightkube-extensions>=0.3.0",
     "cosl",
     "opentelemetry-exporter-otlp-proto-http==1.21.0",
 ]

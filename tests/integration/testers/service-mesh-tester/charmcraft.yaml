@@ -66,4 +66,4 @@ parts:
       - pydantic
       - maturin
       - charmed-service-mesh-helpers
-      - lightkube-extensions@git+https://github.com/canonical/lightkube-extensions.git@feat/SMS-576-enable_raw_policy_reconciliation  # FIXME: remove pin before merging
+      - lightkube-extensions
