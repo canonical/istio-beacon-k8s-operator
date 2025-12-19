@@ -30,7 +30,6 @@ from charms.istio_beacon_k8s.v0.service_mesh import (
     label_configmap_name_template,
     reconcile_charm_labels,
 )
-from charms.istio_beacon_k8s.v0.service_mesh import RESOURCE_TYPES as SERVICE_MESH_RESOURCE_TYPES
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.tempo_coordinator_k8s.v0.charm_tracing import trace_charm
 from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer
@@ -46,6 +45,7 @@ from lightkube.resources.apps_v1 import Deployment
 from lightkube.resources.autoscaling_v2 import HorizontalPodAutoscaler
 from lightkube.resources.core_v1 import Namespace
 from lightkube_extensions.batch import KubernetesResourceManager, create_charm_default_labels
+from lightkube_extensions.types import AuthorizationPolicy
 from ops.model import ActiveStatus, MaintenanceStatus
 from ops.pebble import ChangeError, Layer
 
@@ -373,7 +373,7 @@ class IstioBeaconCharm(ops.CharmBase):
             if self.config["model-on-mesh"]:
                 # When model on mesh, allow the juju controller to talk to the model operator
                 modeloperator_policies = [
-                    SERVICE_MESH_RESOURCE_TYPES["AuthorizationPolicy"](  # type: ignore
+                    AuthorizationPolicy(
                         metadata=ObjectMeta(
                             name=f"{self.app.name}-{self.model.name}-policy-all-sources-modeloperator",
                             namespace=self.model.name,

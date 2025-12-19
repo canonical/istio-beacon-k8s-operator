@@ -1263,7 +1263,7 @@ requires-dist = [
     { name = "httpx", marker = "extra == 'dev'" },
     { name = "jubilant", marker = "extra == 'dev'" },
     { name = "juju", marker = "extra == 'dev'" },
-    { name = "lightkube-extensions", git = "https://github.com/canonical/lightkube-extensions.git?rev=main" },
+    { name = "lightkube-extensions", git = "https://github.com/canonical/lightkube-extensions.git?rev=feat%2FSMS-576-enable_raw_policy_reconciliation" },
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = "==1.21.0" },
     { name = "ops", specifier = "~=2.5" },
     { name = "ops-scenario", marker = "extra == 'dev'", specifier = "~=7.0" },
@@ -1397,7 +1397,7 @@ wheels = [
 [[package]]
 name = "lightkube-extensions"
 version = "999.999.999"
-source = { git = "https://github.com/canonical/lightkube-extensions.git?rev=main#026382c7301e0ae7a1d675ae6e3334d190b09b32" }
+source = { git = "https://github.com/canonical/lightkube-extensions.git?rev=feat%2FSMS-576-enable_raw_policy_reconciliation#bcf4dcb176fbf52d09f7cbaa000e11724b3abd19" }
 dependencies = [
     { name = "jinja2" },
     { name = "lightkube" },
