@@ -126,7 +126,7 @@ class IstioBeaconCharm(ops.CharmBase):
         ]
         relations = {policy.relation for policy in self._service_mesh_policies}
         for relation in relations:
-            logger.debug(f"DEBUG: Observing created and broken events for relation: {relation}")
+            logger.debug(f"Observing created and broken events for relation: {relation}")
             self.framework.observe(
                 self.on[relation].relation_created, self._on_config_changed
             )
