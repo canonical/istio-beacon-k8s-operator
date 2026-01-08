@@ -58,17 +58,10 @@ RESOURCE_TYPES = {
     "Gateway": create_namespaced_resource(
         "gateway.networking.k8s.io", "v1", "Gateway", "gateways"
     ),
-    "AuthorizationPolicy": create_namespaced_resource(
-        "security.istio.io",
-        "v1",
-        "AuthorizationPolicy",
-        "authorizationpolicies",
-    ),
 }
 
 AUTHORIZATION_POLICY_LABEL = "istio-authorization-policy"
 MODELOPERATOR_POLICY_LABEL = "modeloperator-authorization-policy"
-AUTHORIZATION_POLICY_RESOURCE_TYPES = {RESOURCE_TYPES["AuthorizationPolicy"]}
 CROSS_MODEL_MESH_RELATION_NAME = "provide-cmr-mesh"
 METRICS_PORT = 15090
 WAYPOINT_LABEL = "istio-waypoint"
