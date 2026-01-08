@@ -134,9 +134,6 @@ class IstioBeaconCharm(ops.CharmBase):
                 self.on[relation].relation_broken, self._on_config_changed
             )
 
-        # Implement a simplified cross_model_mesh interface.  We need CMR data from things that relate to us, but we
-        # don't need to send CMR data to other charms.
-        # TODO: This feels brittle.  If we ever change the CMR interface, we need to remember to change this too.
         self._cmr_relations = self.model.relations[CROSS_MODEL_MESH_RELATION_NAME]
         # If CMR changes, refresh the charm.
         self.framework.observe(
