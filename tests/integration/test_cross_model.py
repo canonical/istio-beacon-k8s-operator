@@ -105,7 +105,7 @@ def test_deploy_environment(
     )
 
     # Establish the relation between the istio-beacon and the receiver
-    receiver_model.integrate(APP_NAME, RECEIVER)
+    receiver_model.integrate(APP_NAME, f"{RECEIVER}:service-mesh")
 
     # Wait for everything to settle
     sender_model.wait(

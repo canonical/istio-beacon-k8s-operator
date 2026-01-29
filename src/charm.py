@@ -27,6 +27,9 @@ from charms.istio_beacon_k8s.v0.service_mesh import (
     MeshType,
     PolicyResourceManager,
     ServiceMeshProvider,
+    UnitPolicy,
+    build_mesh_policies,
+    get_data_from_cmr_relation,
     label_configmap_name_template,
     reconcile_charm_labels,
 )
@@ -59,6 +62,8 @@ RESOURCE_TYPES = {
 
 AUTHORIZATION_POLICY_LABEL = "istio-authorization-policy"
 MODELOPERATOR_POLICY_LABEL = "modeloperator-authorization-policy"
+CROSS_MODEL_MESH_RELATION_NAME = "provide-cmr-mesh"
+METRICS_PORT = 15090
 WAYPOINT_LABEL = "istio-waypoint"
 WAYPOINT_RESOURCE_TYPES = {
     RESOURCE_TYPES["Gateway"],
@@ -91,7 +96,7 @@ class IstioBeaconCharm(ops.CharmBase):
         # Configure Observability
         self._scraping = MetricsEndpointProvider(
             self,
-            jobs=[{"static_configs": [{"targets": ["*:15090"]}]}],
+            jobs=[{"static_configs": [{"targets": [f"*:{METRICS_PORT}"]}]}],
         )
         self._tracing = TracingEndpointRequirer(
             self, protocols=["otlp_http"], relation_name="charm-tracing"
@@ -110,6 +115,30 @@ class IstioBeaconCharm(ops.CharmBase):
             suffix="-waypoint",
             separator="-",
             max_length=63
+        )
+
+        # Set up the service mesh policies that define our generate AuthorizationPolicies.
+        self._service_mesh_policies = [
+            UnitPolicy(
+                relation="metrics-endpoint",
+                ports=[METRICS_PORT],
+            ),
+        ]
+        relations = {policy.relation for policy in self._service_mesh_policies}
+        for relation in relations:
+            logger.debug(f"Observing created and broken events for relation: {relation}")
+            self.framework.observe(
+                self.on[relation].relation_created, self._on_config_changed
+            )
+            self.framework.observe(
+                self.on[relation].relation_broken, self._on_config_changed
+            )
+
+        self._cmr_relations = self.model.relations[CROSS_MODEL_MESH_RELATION_NAME]
+        # If CMR changes, refresh the charm.
+        self.framework.observe(
+            self.on[CROSS_MODEL_MESH_RELATION_NAME].relation_changed,
+            self._on_config_changed,
         )
 
         self.framework.observe(self.on.config_changed, self._on_config_changed)
@@ -307,10 +336,32 @@ class IstioBeaconCharm(ops.CharmBase):
 
         This includes:
         * MeshPolicies that we provide for other charms via the service mesh relation.
+        * MeshPolicies that we provide for other charms via the service mesh relation.
         """
+        logger.debug("Collecting mesh policies")
         mesh_policies = []
         # MeshPolicies that we provide for other charms via the service mesh relation
-        mesh_policies.extend(self._mesh.mesh_info())
+        mesh_policies_from_service_mesh = self._mesh.mesh_info()
+        logger.debug(
+            f"Collected the following policies to generate for other charms on the service mesh relation:"
+            f" {mesh_policies_from_service_mesh}"
+        )
+        mesh_policies.extend(mesh_policies_from_service_mesh)
+
+        # MeshPolicies for applications that need access to this charm
+        cmr_data = get_data_from_cmr_relation(self._cmr_relations)
+        mesh_policies_from_apps_related_to_this_charm = build_mesh_policies(
+            relation_mapping=self.model.relations,
+            target_app_name=self.app.name,
+            target_namespace=self.model.name,
+            policies=self._service_mesh_policies,  # pyright: ignore
+            cmr_application_data=cmr_data
+        )
+        logger.debug(
+            f"Generated the following policies for apps needing access to istio-beacon:"
+            f" {mesh_policies_from_apps_related_to_this_charm}"
+        )
+        mesh_policies.extend(mesh_policies_from_apps_related_to_this_charm)
         return mesh_policies
 
     def _construct_waypoint(self):

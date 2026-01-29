@@ -41,6 +41,13 @@ requires:
     interface: service_mesh
   require-cmr-mesh:
     interface: cross_model_mesh
+  metrics-endpoint:
+    # This charm does not do a full implementation of metrics-endpoint, it just adds this so it can relate to
+    # istio-beacon-k8s on the prometheus_scrape interface to test policy generation.
+    interface: prometheus_scrape
+    optional: true
+    description: |
+      Integration to scrape the metrics and required endpoints of another charm.
 
 peers:
   peers:

@@ -35,6 +35,8 @@ resources:
     upstream-source: docker.io/ibraaoad/metrics-proxy:v0.1.0
 
 provides:
+  provide-cmr-mesh:
+    interface: cross_model_mesh
   service-mesh:
     interface: service_mesh
     optional: true
