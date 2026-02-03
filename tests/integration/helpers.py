@@ -12,8 +12,8 @@ import yaml
 from jubilant import Juju
 from lightkube.core.client import Client
 from lightkube.generic_resource import create_namespaced_resource
-from lightkube.resources.autoscaling_v2 import HorizontalPodAutoscaler
 from lightkube.resources.apps_v1 import StatefulSet
+from lightkube.resources.autoscaling_v2 import HorizontalPodAutoscaler
 from lightkube.resources.core_v1 import Namespace
 from tenacity import retry, stop_after_delay, wait_exponential
 
