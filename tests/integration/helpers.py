@@ -13,6 +13,7 @@ from jubilant import Juju
 from lightkube.core.client import Client
 from lightkube.generic_resource import create_namespaced_resource
 from lightkube.resources.autoscaling_v2 import HorizontalPodAutoscaler
+from lightkube.resources.apps_v1 import StatefulSet
 from lightkube.resources.core_v1 import Namespace
 from tenacity import retry, stop_after_delay, wait_exponential
 
@@ -180,6 +181,47 @@ def assert_tcp_connectivity(
         assert (
             exit_code != 0
         ), f"Expected TCP connection to {host}:{port} to fail, but it succeeded"
+
+
+@retry(
+    wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_delay(120), reraise=True
+)
+def validate_mesh_labels_on_consumer(
+    juju: Juju, beacon_app: str, consumer_app: str, should_be_present: bool
+):
+    """Validate the presence or absence of mesh labels on a consumer app's StatefulSet pod template.
+
+    Args:
+        juju: Juju instance.
+        beacon_app: Name of the beacon application providing mesh labels.
+        consumer_app: Name of the consumer application to check.
+        should_be_present: Whether the mesh labels should be present or absent.
+    """
+    model_name = juju.model
+    assert model_name is not None
+    client = Client()
+    sts = client.get(StatefulSet, consumer_app, namespace=model_name)
+
+    expected_labels = {
+        "istio.io/dataplane-mode": "ambient",
+        "istio.io/use-waypoint": f"{model_name}-{beacon_app}-waypoint",
+        "istio.io/use-waypoint-namespace": model_name,
+    }
+
+    assert sts.spec and sts.spec.template.metadata
+    pod_labels = sts.spec.template.metadata.labels or {}
+
+    for label, expected_value in expected_labels.items():
+        actual_value = pod_labels.get(label)
+        if should_be_present:
+            assert actual_value == expected_value, (
+                f"Mesh label {label} is missing or incorrect on {consumer_app} StatefulSet. "
+                f"Expected {expected_value!r}, got {actual_value!r}"
+            )
+        else:
+            assert actual_value is None, (
+                f"Mesh label {label} should have been removed from {consumer_app} StatefulSet"
+            )
 
 
 def scale_application(juju: Juju, app_name: str, target_units: int):
