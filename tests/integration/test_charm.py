@@ -13,6 +13,7 @@ from helpers import (
     assert_tcp_connectivity,
     istio_k8s,
     validate_labels,
+    validate_mesh_labels_on_consumer,
     validate_policy_exists,
 )
 from jubilant import Juju, all_active
@@ -136,6 +137,19 @@ def test_mesh_config(juju: Juju, model_on_mesh):
     else:
         with pytest.raises(httpx.HTTPStatusError):
             validate_policy_exists(juju, f"{APP_NAME}-{model_name}-policy-all-sources-modeloperator")
+
+
+@pytest.mark.abort_on_fail
+@pytest.mark.parametrize("model_on_mesh", [False, True, False])
+def test_mesh_labels_update_on_config_change(juju: Juju, model_on_mesh):
+    """Test that toggling model-on-mesh updates mesh labels on consumer apps."""
+    consumer_app = "receiver1"
+    juju.config(consumer_app, {"auto-join-mesh": "true"})
+    juju.config(APP_NAME, {"model-on-mesh": str(model_on_mesh).lower()})
+    juju.wait(lambda s: all_active(s, APP_NAME, consumer_app), timeout=300, delay=5, successes=3)
+    validate_mesh_labels_on_consumer(
+        juju, APP_NAME, consumer_app, should_be_present=not model_on_mesh
+    )
 
 
 @pytest.mark.abort_on_fail
