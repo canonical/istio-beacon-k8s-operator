@@ -668,8 +668,8 @@ def reconcile_charm_labels(client: Client, app_name: str, namespace: str,  label
                 # The label was previously set. Setting it to None will delete it.
                 patch_labels[label] = None
 
-    # Do a least intrusive patch.
-    # This minimal approach eliminates the chance of 409 conflicts with other actors modifying the resources.
+    # Patch just the labels instead of the entire resource defintion.
+    # This minimal approach reduces the chance of 409 conflicts when other actors are modifying the resources.
     # Retrying here is a bad idea as we WANT to get a 409 when someone else patches OUR labels. We shouldn't mask that.
     client.patch(res=StatefulSet, name=app_name, obj={
         "spec": {"template": {"metadata": {"labels": patch_labels}}}
