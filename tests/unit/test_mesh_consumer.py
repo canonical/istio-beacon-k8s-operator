@@ -17,6 +17,9 @@ from charms.istio_beacon_k8s.v0.service_mesh import (
     UnitPolicy,
     reconcile_charm_labels,
 )
+from httpx import HTTPStatusError, Request, Response
+from lightkube.resources.apps_v1 import StatefulSet
+from lightkube.resources.core_v1 import ConfigMap, Service
 from ops import CharmBase
 
 
@@ -291,45 +294,24 @@ def test_relation_data_policies(policies, expected_data):
     )
 
 
-def lightkube_client_mock(unmanaged_labels: dict, managed_labels: dict) -> MagicMock:
-    """Return a mock lightkube client that has a StatefulSet, Service, and ConfigMap, each with the given labels.
+def lightkube_client_mock(managed_labels: dict) -> MagicMock:
+    """Return a mock lightkube client with a ConfigMap tracking the given managed labels.
 
-    This simulates the kubernetes resources that a charm would have and the service mesh library would interact with.
-    All resources are mocked using a shallow copy of the input labels.
-
-    The returned mock has a `.get()` that will return the StatefulSet, Service, or ConfigMap as required.  If called
-    for anything else, it will raise a KeyError.
+    The StatefulSet and Service are no longer read by reconcile_charm_labels (it uses minimal
+    patches instead), so only the ConfigMap is returned via client.get().
 
     Args:
-        unmanaged_labels (dict): Labels that are currently on the objects and are not managed by reconcile_charm_labels.
-                                 For example, a label an admin added to the Service manually.
-        managed_labels (dict): Labels that are currently on the objects and are managed by reconcile_charm_labels.
+        managed_labels (dict): Labels that are currently managed by reconcile_charm_labels,
+                               stored in the ConfigMap.
     """
     client = MagicMock()
-
-    obj_labels = unmanaged_labels.copy()
-    obj_labels.update(managed_labels)
-
-    # Mock StatefulSet that will create Pods with the labels
-    # Pods and Service get both the managed and unmanaged labels
-    stateful_set = MagicMock()
-    # Use a copy here, otherwise all mocks point at a shared obj_labels
-    stateful_set.spec.template.metadata.labels = obj_labels.copy()
-
-    # Mock Service that has the labels
-    service = MagicMock()
-    service.metadata.labels = obj_labels.copy()
 
     # Mock ConfigMap with a labels field in data
     config_map = MagicMock()
     # ConfigMap is a memory of what labels are currently managed.
     config_map.data = {"labels": json.dumps(managed_labels)}
 
-    client.get.side_effect = lambda res, name: {
-        "StatefulSet": stateful_set,
-        "Service": service,
-        "ConfigMap": config_map,
-    }[res.__name__]
+    client.get.return_value = config_map
 
     return client
 
@@ -338,55 +320,51 @@ def assert_charm_kubernetes_objects_have_labels(expected_patch, expected_in_conf
     """Assert that the mock client has patched the StatefulSet, Service, and ConfigMap as expected.
 
     Args:
-        expected_patch (dict): The labels that should be present on the StatefulSet and Service after patching.
+        expected_patch (dict): The labels that should be sent as a minimal patch to the StatefulSet and Service.
         expected_in_configmap (dict): The labels that should be present in the ConfigMap's data field under "labels".
         mock_client (MagicMock): The mock lightkube client that was used to patch the resources.
     """
     # Ensure the patched resources have the expected labels
     patched_statefulset = [call_args.kwargs['obj'] for call_args in mock_client.patch.call_args_list if
-                           call_args.kwargs['res'].__name__ == "StatefulSet"]
+                           call_args.kwargs['res'] is StatefulSet]
     assert len(patched_statefulset) == 1
-    assert patched_statefulset[0].spec.template.metadata.labels == expected_patch
+    assert patched_statefulset[0] == {"spec": {"template": {"metadata": {"labels": expected_patch}}}}
     patched_service = [call_args.kwargs['obj'] for call_args in mock_client.patch.call_args_list if
-                       call_args.kwargs['res'].__name__ == "Service"]
+                       call_args.kwargs['res'] is Service]
     assert len(patched_service) == 1
-    assert patched_service[0].metadata.labels == expected_patch
+    assert patched_service[0] == {"metadata": {"labels": expected_patch}}
     patched_configmap = [call_args.kwargs['obj'] for call_args in mock_client.patch.call_args_list if
-                         call_args.kwargs['res'].__name__ == "ConfigMap"]
+                         call_args.kwargs['res'] is ConfigMap]
     assert len(patched_configmap) == 1
     assert len(patched_configmap[0].data) == 1
     assert json.loads(patched_configmap[0].data["labels"]) == expected_in_configmap
 
 
 @pytest.mark.parametrize(
-    "initial_unmanaged_labels, initial_managed_labels, desired_managed_labels, expected_patch",
+    "initial_managed_labels, desired_managed_labels, expected_patch",
     [
-        # Add label to objects, without disrupting existing labels
+        # Add label to objects
         (
-            {"some-unmanaged-label": "some-value"},
             {},
             {"key-added": "value-added"},
-            {"key-added": "value-added", "some-unmanaged-label": "some-value"},
+            {"key-added": "value-added"},
         ),
-        # Add one label, update one label, and remove one label without disrupting existing labels
+        # Add one label, update one label, and remove one label
         (
-            {"some-unmanaged-label": "some-value"},
             {"key-to-be-removed": "value-to-be-removed", "key-to-be-updated": "value-to-be-updated"},
             {"key-to-be-updated": "value-updated", "key-added": "value-added"},
-            {"key-to-be-removed": None, "key-to-be-updated": "value-updated", "key-added": "value-added", "some-unmanaged-label": "some-value"}
+            {"key-to-be-removed": None, "key-to-be-updated": "value-updated", "key-added": "value-added"}
         ),
         # Remove labels
         (
-            {"some-unmanaged-label": "some-value"},
             {"key-to-be-removed": "v", "key-to-be-removed2": "v"},
             {},
-            {"key-to-be-removed": None, "key-to-be-removed2": None, "some-unmanaged-label": "some-value"},
+            {"key-to-be-removed": None, "key-to-be-removed2": None},
         ),
 
     ]
 )
 def test_reconcile_charm_labels(
-        initial_unmanaged_labels,
         initial_managed_labels,
         desired_managed_labels,
         expected_patch
@@ -394,13 +372,11 @@ def test_reconcile_charm_labels(
     """Test that reconcile_charm_labels correctly patches the StatefulSet, Service, and ConfigMap with the labels.
 
     Args:
-        initial_unmanaged_labels (dict): Labels that are currently on the objects and are not managed by
-                                         reconcile_charm_labels.
         initial_managed_labels (dict): Labels on the kubernetes objects before execution
         desired_managed_labels (dict): The labels that should be present after execution.
         expected_patch (dict): The labels our client.patch() should send to Kubernetes
     """
-    mock_client = lightkube_client_mock(unmanaged_labels=initial_unmanaged_labels, managed_labels=initial_managed_labels)
+    mock_client = lightkube_client_mock(managed_labels=initial_managed_labels)
 
     reconcile_charm_labels(
         client=mock_client,
@@ -413,16 +389,46 @@ def test_reconcile_charm_labels(
     assert_charm_kubernetes_objects_have_labels(expected_patch=expected_patch, expected_in_configmap=desired_managed_labels, mock_client=mock_client)
 
 
+def test_reconcile_charm_labels_does_not_touch_unmanaged_labels():
+    """Test that reconcile_charm_labels never includes unmanaged labels in its patches.
+
+    Unmanaged labels (e.g. labels added by an admin or another controller) exist on the
+    Kubernetes resources but are not tracked in the ConfigMap.  Since we use minimal strategic
+    merge patches, unmanaged labels must never appear in the patch dict - their absence from the
+    patch means Kubernetes leaves them untouched.
+    """
+    # ConfigMap only knows about managed labels, not the unmanaged ones on the actual resources
+    mock_client = lightkube_client_mock(managed_labels={"managed-key": "managed-value"})
+
+    reconcile_charm_labels(
+        client=mock_client,
+        app_name="my-app",
+        namespace="test-ns",
+        label_configmap_name="my-cm",
+        labels={"managed-key": "updated-value", "new-key": "new-value"},
+    )
+
+    # Verify no unmanaged labels leaked into the patches
+    expected_patch = {"managed-key": "updated-value", "new-key": "new-value"}
+    for call_args in mock_client.patch.call_args_list:
+        obj = call_args.kwargs["obj"]
+        if isinstance(obj, dict):
+            # StatefulSet or Service patch — extract the labels from the dict
+            if "spec" in obj:
+                patched_labels = obj["spec"]["template"]["metadata"]["labels"]
+            else:
+                patched_labels = obj["metadata"]["labels"]
+            assert patched_labels == expected_patch, (
+                f"Patch contains unexpected labels: {patched_labels}"
+            )
+
+
 def test_reconcile_charm_labels_configmap_created_on_404():
     """Test that reconcile_charm_labels creates its ConfigMap if it doesn't exist."""
-    mocked_client = lightkube_client_mock(unmanaged_labels={}, managed_labels={})
-    def side_effect(res, name):
-        if res.__name__ == "ConfigMap":
-            from httpx import HTTPStatusError, Request, Response
-            raise HTTPStatusError("Not found", request=Request("GET", "url"), response=Response(404))
-        else:
-            return MagicMock()
-    mocked_client.get.side_effect = side_effect
+    mocked_client = MagicMock()
+    mocked_client.get.side_effect = HTTPStatusError(
+        "Not found", request=Request("GET", "url"), response=Response(404)
+    )
 
     # mock _init_label_configmap to return a mock ConfigMap with a data field that has no labels included, just so
     # reconcile_charm_labels doesn't fail
