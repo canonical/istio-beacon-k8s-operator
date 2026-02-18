@@ -456,6 +456,13 @@ class ServiceMeshConsumer(Object):
             return {}
         return app_data.labels
 
+    @property
+    def enabled(self) -> bool:
+        """Return if the consumer is currently in the mesh."""
+        if self._get_app_data() is None:
+            return False
+        return True
+
     def mesh_type(self) -> Optional[MeshType]:
         """Return the type of the service mesh."""
         app_data = self._get_app_data()

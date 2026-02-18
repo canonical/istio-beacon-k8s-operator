@@ -478,3 +478,25 @@ def test_getting_relation_data(patched_reconcile: MagicMock):
         assert labels_actual == manager.charm.mesh.labels()
         assert mesh_type_actual == manager.charm.mesh.mesh_type()
         assert expected_data == manager.charm.mesh._get_app_data()
+        assert manager.charm.mesh.enabled is True
+
+
+@patch("charms.istio_beacon_k8s.v0.service_mesh.reconcile_charm_labels")
+def test_enabled_false_when_no_relation(patched_reconcile: MagicMock):
+    """Test that enabled returns False when there is no mesh relation data."""
+    ctx = consumer_context([AppPolicy(relation="rela", endpoints=[ENDPOINT_A], service=None)])
+    mesh_relation = scenario.Relation(
+        endpoint="service-mesh",
+        interface="service_mesh",
+    )
+    state = scenario.State(
+        relations={
+            mesh_relation,
+        },
+        leader=True,
+    )
+    with ctx(
+        ctx.on.relation_changed(relation=mesh_relation),
+        state,
+    ) as manager:
+        assert manager.charm.mesh.enabled is False
