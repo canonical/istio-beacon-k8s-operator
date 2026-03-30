@@ -476,8 +476,8 @@ def test_getting_relation_data(patched_reconcile: MagicMock):
 
 
 @patch("charms.istio_beacon_k8s.v0.service_mesh.reconcile_charm_labels")
-def test_enabled_false_when_no_relation(patched_reconcile: MagicMock):
-    """Test that enabled returns False when there is no mesh relation data."""
+def test_enabled_true_when_relation_exists(patched_reconcile: MagicMock):
+    """Test that enabled returns True when the mesh relation exists, even without data."""
     ctx = consumer_context([AppPolicy(relation="rela", endpoints=[ENDPOINT_A], service=None)])
     mesh_relation = scenario.Relation(
         endpoint="service-mesh",
@@ -491,6 +491,41 @@ def test_enabled_false_when_no_relation(patched_reconcile: MagicMock):
     )
     with ctx(
         ctx.on.relation_changed(relation=mesh_relation),
+        state,
+    ) as manager:
+        assert manager.charm.mesh.enabled is True
+
+
+def test_enabled_false_when_no_relation():
+    """Test that enabled returns False when there is no mesh relation."""
+    ctx = consumer_context([AppPolicy(relation="rela", endpoints=[ENDPOINT_A], service=None)])
+    state = scenario.State(
+        relations=set(),
+        leader=True,
+    )
+    with ctx(
+        ctx.on.start(),
+        state,
+    ) as manager:
+        assert manager.charm.mesh.enabled is False
+
+
+@patch("charms.istio_beacon_k8s.v0.service_mesh.reconcile_charm_labels")
+def test_enabled_false_after_relation_broken(patched_reconcile: MagicMock):
+    """Test that enabled returns False after the mesh relation is broken."""
+    ctx = consumer_context([AppPolicy(relation="rela", endpoints=[ENDPOINT_A], service=None)])
+    mesh_relation = scenario.Relation(
+        endpoint="service-mesh",
+        interface="service_mesh",
+    )
+    state = scenario.State(
+        relations={
+            mesh_relation,
+        },
+        leader=True,
+    )
+    with ctx(
+        ctx.on.relation_broken(relation=mesh_relation),
         state,
     ) as manager:
         assert manager.charm.mesh.enabled is False
