@@ -23,7 +23,7 @@ from lightkube.resources.core_v1 import Pod
 logger = logging.getLogger(__name__)
 
 
-@pytest.mark.setup
+@pytest.mark.juju_setup
 @pytest.mark.abort_on_fail
 def test_deploy_dependencies(istio_juju: Juju):
     """Deploy istio-k8s in istio-system model."""
@@ -34,7 +34,7 @@ def test_deploy_dependencies(istio_juju: Juju):
     assert status.apps[istio_k8s.application_name].is_active
 
 
-@pytest.mark.setup
+@pytest.mark.juju_setup
 @pytest.mark.abort_on_fail
 def test_deployment(juju: Juju, istio_beacon_charm, istio_beacon_resources):
     """Deploy istio-beacon-k8s charm."""
@@ -51,7 +51,7 @@ def test_deployment(juju: Juju, istio_beacon_charm, istio_beacon_resources):
         successes=3,
     )
 
-@pytest.mark.setup
+@pytest.mark.juju_setup
 @pytest.mark.abort_on_fail
 def test_istio_beacon_is_on_the_mesh(juju: Juju):
     """Test that the istio-beacon is on the mesh."""
@@ -66,7 +66,7 @@ def test_istio_beacon_is_on_the_mesh(juju: Juju):
     assert beacon_pod.metadata.annotations.get("ambient.istio.io/redirection", None) == "enabled"
 
 
-@pytest.mark.setup
+@pytest.mark.juju_setup
 @pytest.mark.abort_on_fail
 def test_deploy_service_mesh_apps(juju: Juju, service_mesh_tester):
     """Deploy the required tester apps onto the test model required for testing service mesh relation.

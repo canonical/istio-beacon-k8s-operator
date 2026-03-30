@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 TESTER_APP_NAME = "tester"
 
 
-@pytest.mark.setup
+@pytest.mark.juju_setup
 @pytest.mark.abort_on_fail
 def test_deploy_dependencies(istio_juju: Juju):
     """Deploy istio-k8s in istio-system model."""
@@ -32,7 +32,7 @@ def test_deploy_dependencies(istio_juju: Juju):
     assert status.apps[istio_k8s.application_name].is_active
 
 
-@pytest.mark.setup
+@pytest.mark.juju_setup
 @pytest.mark.abort_on_fail
 def test_deployment(juju: Juju, istio_beacon_charm, istio_beacon_resources):
     """Deploy istio-beacon-k8s charm."""
@@ -50,7 +50,7 @@ def test_deployment(juju: Juju, istio_beacon_charm, istio_beacon_resources):
     )
 
 
-@pytest.mark.setup
+@pytest.mark.juju_setup
 @pytest.mark.abort_on_fail
 def test_service_mesh_relation(juju: Juju, service_mesh_tester):
     """Adds a tester charm and creates a service mesh relation between beacon and the tester charm.

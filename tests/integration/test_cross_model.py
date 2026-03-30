@@ -30,7 +30,7 @@ def receiver_model(juju_factory):
     return receiver_model
 
 
-@pytest.mark.setup
+@pytest.mark.juju_setup
 @pytest.mark.abort_on_fail
 def test_deploy_istio_dependencies(istio_juju: Juju):
     """Deploy istio-k8s in istio-system model."""
@@ -41,7 +41,7 @@ def test_deploy_istio_dependencies(istio_juju: Juju):
     assert status.apps[istio_k8s.application_name].is_active
 
 
-@pytest.mark.setup
+@pytest.mark.juju_setup
 @pytest.mark.abort_on_fail
 def test_deploy_environment(
     sender_model: Juju,
