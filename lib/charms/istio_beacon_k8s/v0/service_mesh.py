@@ -459,7 +459,7 @@ class ServiceMeshConsumer(Object):
     @property
     def enabled(self) -> bool:
         """Return if the consumer is currently in the mesh."""
-        if self._get_app_data() is None:
+        if self._relation is None or not self._relation.app:
             return False
         return True
 
