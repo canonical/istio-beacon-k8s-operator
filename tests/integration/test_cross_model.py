@@ -17,16 +17,16 @@ from jubilant import Juju, all_active
 
 
 @pytest.fixture(scope="module")
-def sender_model(temp_model_factory):
+def sender_model(juju_factory):
     """Create and return a Juju instance for the sender model."""
-    sender_model = temp_model_factory.get_juju("sender")
+    sender_model = juju_factory.get_juju("sender")
     return sender_model
 
 
 @pytest.fixture(scope="module")
-def receiver_model(temp_model_factory):
+def receiver_model(juju_factory):
     """Create and return a Juju instance for the receiver model."""
-    receiver_model = temp_model_factory.get_juju("receiver")
+    receiver_model = juju_factory.get_juju("receiver")
     return receiver_model
 
 

@@ -314,15 +314,15 @@ def test_peer_communication_in_scaled_service_mesh_consumer(juju: Juju, peer_com
 
 
 @pytest.mark.abort_on_fail
-def test_modeloperator_rule(juju: Juju, service_mesh_tester, tester_resources, temp_model_factory):
+def test_modeloperator_rule(juju: Juju, service_mesh_tester, tester_resources, juju_factory):
     """Test that we allow anything, even off-mesh workloads, to talk to the modeloperator in beacon's namespace."""
     base_model = juju.model
 
     # Ensure model is on mesh
     juju.config(APP_NAME, {"model-on-mesh": "true"})
 
-    # Create off-mesh model using temp_model_factory - respects --keep-models
-    omm_juju = temp_model_factory.get_juju("off-mesh-model")
+    # Create off-mesh model using juju_factory - respects --keep-models
+    omm_juju = juju_factory.get_juju("off-mesh-model")
 
     # Deploy sender in off-mesh model
     resources = {"echo-server-image": "jmalloc/echo-server:v0.3.7"}

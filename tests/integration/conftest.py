@@ -8,9 +8,8 @@ import shutil
 from pathlib import Path
 
 import pytest
-from helpers import istio_k8s
+from helpers import get_resources, istio_k8s, pack
 from jubilant import all_active
-from pytest_jubilant import get_resources, pack
 
 
 @pytest.fixture(scope="session")
@@ -26,7 +25,7 @@ def istio_beacon_charm():
 @pytest.fixture(scope="session")
 def istio_beacon_resources():
     """Extract resources from charmcraft.yaml."""
-    return get_resources(".")
+    return get_resources("charmcraft.yaml")
 
 
 @pytest.fixture(scope="session")
@@ -49,14 +48,14 @@ def service_mesh_tester():
 @pytest.fixture(scope="session")
 def tester_resources():
     """Extract tester charm resources."""
-    return get_resources("./tests/integration/testers/service-mesh-tester")
+    return get_resources("./tests/integration/testers/service-mesh-tester/charmcraft.yaml")
 
 
 @pytest.fixture(scope="module")
-def istio_juju(temp_model_factory):
+def istio_juju(juju_factory):
     """Deploy istio-k8s in istio-system model."""
-    # Use temp_model_factory to create model - automatically respects --keep-models
-    istio_juju_model = temp_model_factory.get_juju("istio-system")
+    # Use juju_factory to create model - automatically respects --keep-models
+    istio_juju_model = juju_factory.get_juju("istio-system")
 
     # Deploy istio-k8s
     istio_juju_model.deploy(
