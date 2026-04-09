@@ -35,6 +35,7 @@ resources:
 provides:
   provide-cmr-mesh:
     interface: cross_model_mesh
+    optional: true
   service-mesh:
     interface: service_mesh
     optional: true
