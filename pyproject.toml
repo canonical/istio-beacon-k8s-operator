@@ -29,7 +29,7 @@ dev = [
     # Integration
     "juju",
     "jubilant",
-    "pytest-jubilant",
+    "pytest-jubilant>=2,<3",
     "httpx",
     "tenacity",
 ]
