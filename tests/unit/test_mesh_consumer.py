@@ -7,7 +7,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import scenario
-from charms.istio_beacon_k8s.v0.service_mesh import (
+from canonical_service_mesh.utils.istio import reconcile_charm_labels
+from charmlibs.interfaces.service_mesh import (
     AppPolicy,
     Endpoint,
     MeshType,
@@ -15,7 +16,6 @@ from charms.istio_beacon_k8s.v0.service_mesh import (
     ServiceMeshConsumer,
     ServiceMeshProviderAppData,
     UnitPolicy,
-    reconcile_charm_labels,
 )
 from httpx import HTTPStatusError, Request, Response
 from lightkube.resources.apps_v1 import StatefulSet
@@ -432,7 +432,7 @@ def test_reconcile_charm_labels_configmap_created_on_404():
 
     # mock _init_label_configmap to return a mock ConfigMap with a data field that has no labels included, just so
     # reconcile_charm_labels doesn't fail
-    with patch("charms.istio_beacon_k8s.v0.service_mesh._init_label_configmap") as mock_init:
+    with patch("canonical_service_mesh.utils.istio._labels._init_label_configmap") as mock_init:
         mock_init.return_value = MagicMock()
         mock_init.return_value.data = {"labels": "{}"}
         reconcile_charm_labels(
@@ -447,7 +447,7 @@ def test_reconcile_charm_labels_configmap_created_on_404():
 
 
 # No need to actually reconcile anything in this test.
-@patch("charms.istio_beacon_k8s.v0.service_mesh.reconcile_charm_labels")
+@patch("charmlibs.interfaces.service_mesh._service_mesh.reconcile_charm_labels")
 def test_getting_relation_data(patched_reconcile: MagicMock):
     """Test that the consumer can read relation data set by a provider."""
     ctx = consumer_context([AppPolicy(relation="rela", endpoints=[ENDPOINT_A], service=None)])
@@ -481,7 +481,7 @@ def test_getting_relation_data(patched_reconcile: MagicMock):
         assert manager.charm.mesh.enabled is True
 
 
-@patch("charms.istio_beacon_k8s.v0.service_mesh.reconcile_charm_labels")
+@patch("charmlibs.interfaces.service_mesh._service_mesh.reconcile_charm_labels")
 def test_enabled_true_when_relation_exists(patched_reconcile: MagicMock):
     """Test that enabled returns True when the mesh relation exists, even without data."""
     ctx = consumer_context([AppPolicy(relation="rela", endpoints=[ENDPOINT_A], service=None)])
@@ -516,7 +516,7 @@ def test_enabled_false_when_no_relation():
         assert manager.charm.mesh.enabled is False
 
 
-@patch("charms.istio_beacon_k8s.v0.service_mesh.reconcile_charm_labels")
+@patch("charmlibs.interfaces.service_mesh._service_mesh.reconcile_charm_labels")
 def test_enabled_false_after_relation_broken(patched_reconcile: MagicMock):
     """Test that enabled returns False after the mesh relation is broken."""
     ctx = consumer_context([AppPolicy(relation="rela", endpoints=[ENDPOINT_A], service=None)])

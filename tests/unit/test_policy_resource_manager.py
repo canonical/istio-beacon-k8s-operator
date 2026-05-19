@@ -5,12 +5,10 @@ from unittest.mock import MagicMock, Mock, patch
 
 import httpx
 import pytest
-from charms.istio_beacon_k8s.v0.service_mesh import (
-    MeshType,
-    PolicyResourceManager,
-)
+from canonical_service_mesh.k8s.resource_manager import PolicyResourceManager
+from canonical_service_mesh.k8s.types.istio import AuthorizationPolicy
+from charmlibs.interfaces.service_mesh import MeshType
 from lightkube.models.meta_v1 import ObjectMeta
-from lightkube_extensions.types import AuthorizationPolicy
 from ops import CharmBase
 
 
@@ -29,7 +27,7 @@ def mock_lightkube_client():
 
 def test_policy_resource_manager_reconcile_empty_policies_calls_delete(mock_charm, mock_lightkube_client):
     """Test reconcile calls delete when policies list is empty."""
-    with patch('charms.istio_beacon_k8s.v0.service_mesh.KubernetesResourceManager'):
+    with patch('canonical_service_mesh.k8s.resource_manager._resource_manager.KubernetesResourceManager'):
         prm = PolicyResourceManager(
             charm=mock_charm,
             lightkube_client=mock_lightkube_client,
@@ -45,7 +43,7 @@ def test_policy_resource_manager_reconcile_empty_policies_calls_delete(mock_char
 
 def test_policy_resource_manager_delete_handles_404_error(mock_charm, mock_lightkube_client):
     """Test delete method handles 404 errors gracefully when ignore_missing=True."""
-    with patch('charms.istio_beacon_k8s.v0.service_mesh.KubernetesResourceManager'):
+    with patch('canonical_service_mesh.k8s.resource_manager._resource_manager.KubernetesResourceManager'):
         prm = PolicyResourceManager(
             charm=mock_charm,
             lightkube_client=mock_lightkube_client,
@@ -69,7 +67,7 @@ def test_policy_resource_manager_delete_handles_404_error(mock_charm, mock_light
 
 def test_policy_resource_manager_reconcile_with_raw_policies_does_not_delete(mock_charm, mock_lightkube_client):
     """Test reconcile with empty policies but raw_policies provided does NOT call delete."""
-    with patch('charms.istio_beacon_k8s.v0.service_mesh.KubernetesResourceManager'):
+    with patch('canonical_service_mesh.k8s.resource_manager._resource_manager.KubernetesResourceManager'):
         prm = PolicyResourceManager(
             charm=mock_charm,
             lightkube_client=mock_lightkube_client,
@@ -97,7 +95,7 @@ def test_policy_resource_manager_reconcile_with_raw_policies_does_not_delete(moc
 
 def test_policy_resource_manager_validate_raw_policies_rejects_unsupported_type(mock_charm, mock_lightkube_client):
     """Test that raw_policies with unsupported type raises TypeError."""
-    with patch('charms.istio_beacon_k8s.v0.service_mesh.KubernetesResourceManager'):
+    with patch('canonical_service_mesh.k8s.resource_manager._resource_manager.KubernetesResourceManager'):
         prm = PolicyResourceManager(
             charm=mock_charm,
             lightkube_client=mock_lightkube_client,

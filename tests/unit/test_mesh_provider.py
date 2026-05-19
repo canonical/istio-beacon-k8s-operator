@@ -2,7 +2,7 @@ import json
 
 import pytest
 import scenario
-from charms.istio_beacon_k8s.v0.service_mesh import (
+from charmlibs.interfaces.service_mesh import (
     MeshPolicy,
     MeshType,
     PolicyTargetType,

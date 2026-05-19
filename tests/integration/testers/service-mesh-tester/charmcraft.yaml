@@ -72,5 +72,5 @@ parts:
       - pydantic-core
       - pydantic
       - maturin
-      - charmed-service-mesh-helpers
-      - lightkube-extensions
+      - canonical-service-mesh
+      - charmlibs-interfaces-service-mesh

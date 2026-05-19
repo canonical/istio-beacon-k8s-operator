@@ -2,7 +2,7 @@
 # See LICENSE file for licensing details.
 
 import pytest
-from charms.istio_beacon_k8s.v0.service_mesh import (
+from charmlibs.interfaces.service_mesh import (
     Endpoint,
     MeshPolicy,
     PolicyTargetType,

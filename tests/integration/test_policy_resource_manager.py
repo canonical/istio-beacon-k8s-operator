@@ -9,7 +9,12 @@ import logging
 from unittest.mock import MagicMock
 
 import pytest
-from charmed_service_mesh_helpers.models import (
+from canonical_service_mesh.k8s.resource_manager import (
+    PolicyResourceManager,
+    create_charm_default_labels,
+)
+from canonical_service_mesh.k8s.types.istio import AuthorizationPolicy
+from canonical_service_mesh.models.istio import (
     AuthorizationPolicySpec,
     From,
     Operation,
@@ -18,19 +23,16 @@ from charmed_service_mesh_helpers.models import (
     Source,
     To,
 )
-from charms.istio_beacon_k8s.v0.service_mesh import (
+from charmlibs.interfaces.service_mesh import (
     Endpoint,
     MeshPolicy,
     MeshType,
-    PolicyResourceManager,
     PolicyTargetType,
 )
 from helpers import APP_NAME, AuthPolicy
 from jubilant import Juju, all_active
 from lightkube import Client
 from lightkube.models.meta_v1 import ObjectMeta
-from lightkube_extensions.batch import create_charm_default_labels
-from lightkube_extensions.types import AuthorizationPolicy
 from tenacity import retry, stop_after_delay, wait_exponential
 
 logger = logging.getLogger(__name__)
