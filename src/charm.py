@@ -397,8 +397,8 @@ class IstioBeaconCharm(ops.CharmBase):
         )
         gateway_resource = RESOURCE_TYPES["Gateway"]
         return gateway_resource(
-            metadata=ObjectMeta.from_dict(gateway.metadata.model_dump()),
-            spec=gateway.spec.model_dump(),
+            metadata=ObjectMeta.from_dict(gateway.metadata.model_dump(exclude_none=True)),
+            spec=gateway.spec.model_dump(exclude_none=True),
         )
 
     def _construct_hpa(self, unit_count: int) -> HorizontalPodAutoscaler:
