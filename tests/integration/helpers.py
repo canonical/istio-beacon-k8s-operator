@@ -4,6 +4,7 @@
 # See LICENSE file for licensing details.
 
 import logging
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -241,3 +242,39 @@ def scale_application(juju: Juju, app_name: str, target_units: int):
     elif target_units < current_count:
         # Scale down - K8s models require --num-units, not named units
         juju.remove_unit(app_name, num_units=current_count - target_units)
+
+
+def pack(root: Path | str = "./", platform: str | None = None) -> Path:
+    """Pack a local charm and return it."""
+    cmd = ["charmcraft", "pack", "--project-dir", root]
+    if platform:
+        cmd.extend(["--platform", platform])
+    proc = subprocess.run(cmd, check=True, capture_output=True, text=True)
+    # stderr looks like:
+    # > charmcraft pack
+    # Packed tempo-coordinator-k8s_ubuntu@24.04-amd64.charm
+    # Packed tempo-coordinator-k8s_ubuntu@22.04-amd64.charm
+    packed_charms = [
+        line.split()[1]
+        for line in proc.stderr.strip().splitlines()
+        if line.startswith("Packed")
+    ]
+    if not packed_charms:
+        raise ValueError(
+            "Unable to get packed charm(s)!"
+            f" ({cmd!r} completed with {proc.returncode=}, {proc.stdout=}, {proc.stderr=})"
+        )
+    if len(packed_charms) > 1:
+        raise ValueError(
+            "This charm supports multiple platforms. "
+            "Pass a `platform` argument to control which charm you're getting instead."
+        )
+    return Path(packed_charms[0]).resolve()
+
+
+def get_resources(path: str | Path = Path("charmcraft.yaml")) -> dict[str, str]:
+    meta = yaml.safe_load(Path(path).read_text())
+    return {
+        resource: data["upstream-source"]
+        for resource, data in meta["resources"].items()
+    }

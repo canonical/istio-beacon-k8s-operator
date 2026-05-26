@@ -92,7 +92,7 @@ def assert_policy_accepted(lightkube_client: Client, policy_name: str, namespace
     assert accepted, f"Policy {policy_name} not accepted. Conditions: {conditions}"
 
 
-@pytest.mark.setup
+@pytest.mark.juju_setup
 @pytest.mark.abort_on_fail
 def test_deploy_beacon(
     juju: Juju, istio_juju: Juju, istio_beacon_charm, istio_beacon_resources
