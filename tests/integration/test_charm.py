@@ -16,7 +16,7 @@ from helpers import (
     validate_mesh_labels_on_consumer,
     validate_policy_exists,
 )
-from jubilant import Juju, all_active
+from jubilant import Juju, all_active, all_agents_idle
 from lightkube.core.client import Client
 from lightkube.resources.core_v1 import Pod
 
@@ -97,16 +97,9 @@ def test_deploy_service_mesh_apps(juju: Juju, service_mesh_tester):
     juju.integrate("receiver1:inbound", "sender1:outbound")
     juju.integrate("receiver1:inbound-unit", "sender2:outbound")
 
+    apps = [APP_NAME, "receiver1", "sender1", "sender2", "sender3", "sender-scaled"]
     juju.wait(
-        lambda s: all_active(
-            s,
-            APP_NAME,
-            "receiver1",
-            "sender1",
-            "sender2",
-            "sender3",
-            "sender-scaled",
-        ),
+        lambda s: all_agents_idle(s, *apps) and all_active(s,*apps),
         timeout=1000,
         delay=5,
         successes=3,
@@ -122,7 +115,7 @@ def test_mesh_config(juju: Juju, model_on_mesh):
     # Set model-on-mesh config
     juju.config(APP_NAME, {"model-on-mesh": str(model_on_mesh).lower()})
     juju.wait(
-        lambda s: all_active(s, APP_NAME),
+        lambda s: all_agents_idle(s, APP_NAME) and all_active(s, APP_NAME),
         timeout=1000,
         delay=5,
         successes=3,
@@ -146,7 +139,7 @@ def test_mesh_labels_update_on_config_change(juju: Juju, model_on_mesh):
     consumer_app = "receiver1"
     juju.config(consumer_app, {"auto-join-mesh": "true"})
     juju.config(APP_NAME, {"model-on-mesh": str(model_on_mesh).lower()})
-    juju.wait(lambda s: all_active(s, APP_NAME, consumer_app), timeout=300, delay=5, successes=3)
+    juju.wait(lambda s: all_agents_idle(s, APP_NAME, consumer_app) and all_active(s, APP_NAME, consumer_app), timeout=300, delay=5, successes=3)
     validate_mesh_labels_on_consumer(
         juju, APP_NAME, consumer_app, should_be_present=not model_on_mesh
     )
@@ -167,22 +160,16 @@ def test_service_mesh_relation(juju: Juju, model_on_mesh):
     juju.config(APP_NAME, {"model-on-mesh": str(model_on_mesh).lower()})
 
     # Wait for the mesh configuration for this model to be applied
-    juju.wait(lambda s: all_active(s, APP_NAME), timeout=300, delay=5, successes=3)
+    juju.wait(lambda s: all_agents_idle(s, APP_NAME) and all_active(s, APP_NAME), timeout=300, delay=5, successes=3)
 
     # configure auto-join for the apps based on model_on_mesh
     juju.config("receiver1", {"auto-join-mesh": str(not model_on_mesh).lower()})
     juju.config("sender1", {"auto-join-mesh": str(not model_on_mesh).lower()})
     juju.config("sender2", {"auto-join-mesh": str(not model_on_mesh).lower()})
 
+    apps = [APP_NAME, "receiver1", "sender1", "sender2", "sender3"]
     juju.wait(
-        lambda s: all_active(
-            s,
-            APP_NAME,
-            "receiver1",
-            "sender1",
-            "sender2",
-            "sender3",
-        ),
+        lambda s: all_agents_idle(s, *apps) and all_active(s, *apps),
         timeout=1000,
         delay=5,
         successes=3,
@@ -290,7 +277,7 @@ def test_service_mesh_consumer_scaling(juju: Juju):
     juju.add_unit("sender-scaled", num_units=1)
 
     juju.wait(
-        lambda s: all_active(s, "sender-scaled"),
+        lambda s: all_agents_idle(s, "sender-scaled") and all_active(s, "sender-scaled"),
         timeout=200,
         delay=5,
         successes=3,
@@ -332,7 +319,7 @@ def test_modeloperator_rule(juju: Juju, service_mesh_tester, tester_resources, j
         resources=resources,
         trust=True,
     )
-    omm_juju.wait(lambda s: all_active(s, "sender"), timeout=600, delay=5, successes=3)
+    omm_juju.wait(lambda s: all_agents_idle(s, "sender") and all_active(s, "sender"), timeout=600, delay=5, successes=3)
 
     # Test TCP connectivity to modeloperator - we only care that the network connection can be established,
     # proving that the service mesh allows traffic from off-mesh workloads to the modeloperator

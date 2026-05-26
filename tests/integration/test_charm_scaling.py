@@ -14,7 +14,7 @@ from helpers import (
     istio_k8s,
     scale_application,
 )
-from jubilant import Juju, all_active
+from jubilant import Juju, all_active, all_agents_idle
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ def test_deployment(juju: Juju, istio_beacon_charm, istio_beacon_resources):
         trust=True,
     )
     juju.wait(
-        lambda s: all_active(s, APP_NAME),
+        lambda s: all_agents_idle(s, APP_NAME) and all_active(s, APP_NAME),
         timeout=1000,
         delay=5,
         successes=3,
@@ -65,14 +65,14 @@ def test_service_mesh_relation(juju: Juju, service_mesh_tester):
         trust=True,
     )
     juju.wait(
-        lambda s: all_active(s, TESTER_APP_NAME),
+        lambda s: all_agents_idle(s, TESTER_APP_NAME) and all_active(s, TESTER_APP_NAME),
         timeout=1000,
         delay=5,
         successes=3,
     )
     juju.integrate("tester:service-mesh", APP_NAME)
     juju.wait(
-        lambda s: all_active(s, APP_NAME, TESTER_APP_NAME),
+        lambda s: all_agents_idle(s, APP_NAME, TESTER_APP_NAME) and all_active(s, APP_NAME, TESTER_APP_NAME),
         timeout=1000,
         delay=5,
         successes=3,
@@ -102,7 +102,7 @@ def test_waypoint_scaling(juju: Juju, n_units):
     scale_application(juju, APP_NAME, n_units)
 
     juju.wait(
-        lambda s: all_active(s, APP_NAME),
+        lambda s: all_agents_idle(s, APP_NAME) and all_active(s, APP_NAME),
         timeout=2000,
         delay=5,
         successes=3,

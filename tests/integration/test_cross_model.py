@@ -13,7 +13,7 @@ from helpers import (
     assert_request_returns_http_code,
     istio_k8s,
 )
-from jubilant import Juju, all_active
+from jubilant import Juju, all_active, all_agents_idle
 
 
 @pytest.fixture(scope="module")
@@ -109,13 +109,13 @@ def test_deploy_environment(
 
     # Wait for everything to settle
     sender_model.wait(
-        lambda s: all_active(s, APP_NAME, SENDER),
+        lambda s: all_agents_idle(s, APP_NAME, SENDER) and all_active(s, APP_NAME, SENDER),
         timeout=1000,
         delay=5,
         successes=3,
     )
     receiver_model.wait(
-        lambda s: all_active(s, APP_NAME, RECEIVER),
+        lambda s: all_agents_idle(s, APP_NAME, RECEIVER) and all_active(s, APP_NAME, RECEIVER),
         timeout=1000,
         delay=5,
         successes=3,
