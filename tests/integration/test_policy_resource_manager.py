@@ -26,7 +26,7 @@ from charms.istio_beacon_k8s.v0.service_mesh import (
     PolicyTargetType,
 )
 from helpers import APP_NAME, AuthPolicy
-from jubilant import Juju, all_active
+from jubilant import Juju, all_active, all_agents_idle
 from lightkube import Client
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube_extensions.batch import create_charm_default_labels
@@ -106,7 +106,7 @@ def test_deploy_beacon(
         config={"model-on-mesh": "true"},
     )
     juju.wait(
-        lambda s: all_active(s, APP_NAME),
+        lambda s: all_agents_idle(s, APP_NAME) and all_active(s, APP_NAME),
         timeout=1000,
         delay=5,
         successes=3,

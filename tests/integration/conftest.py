@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 from helpers import istio_k8s
-from jubilant import all_active
+from jubilant import all_active, all_agents_idle
 from pytest_jubilant import get_resources, pack
 
 
@@ -69,7 +69,7 @@ def istio_juju(temp_model_factory):
 
     # Wait for istio-k8s to be active
     istio_juju_model.wait(
-        lambda s: all_active(s, istio_k8s.application_name),
+        lambda s: all_agents_idle(s, istio_k8s.application_name) and all_active(s, istio_k8s.application_name),
         timeout=1000,
         delay=5,
         successes=3,
