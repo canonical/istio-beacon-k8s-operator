@@ -20,3 +20,4 @@ jobs:
     secrets: inherit
     with:
       automatically-retry-hooks: true # A fix for #8
+      provider: 'microk8s'
