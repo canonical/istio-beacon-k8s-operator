@@ -72,7 +72,7 @@ config:
         All charms in this model will automatically be added to the mesh.
     ready-timeout:
       type: int
-      default: 100
+      default: 500
       description: >
         The maximum time (in seconds) to wait for the waypoint deployment to be 
         ready. This applies specifically to the deployment created for the Istio 
