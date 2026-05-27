@@ -16,7 +16,7 @@ permissions:
 jobs:
   pull-request:
     name: PR
-    uses: canonical/observability/.github/workflows/charm-pull-request.yaml@v2
+    uses: canonical/observability/.github/workflows/charm-pull-request.yaml@fix/charm-pull-charmcraft-channel
     secrets: inherit
     with:
       automatically-retry-hooks: true # A fix for #8
