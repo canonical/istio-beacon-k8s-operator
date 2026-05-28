@@ -474,7 +474,6 @@ class IstioBeaconCharm(ops.CharmBase):
                 [
                     self._construct_waypoint(),
                     self._construct_hpa(unit_count),
-
                 ]
             )
         krm.reconcile(resources_list)
