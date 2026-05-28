@@ -16,8 +16,7 @@ permissions:
 jobs:
   pull-request:
     name: PR
-    # TODO: move it back to v2 when https://github.com/canonical/observability/pull/451 is merged
-    uses: canonical/observability/.github/workflows/charm-pull-request.yaml@b96ea51b47602627ab543e330a08f4f97d06ced0
+    uses: canonical/observability/.github/workflows/charm-pull-request.yaml@v2
     secrets: inherit
     with:
       automatically-retry-hooks: true # A fix for #8
