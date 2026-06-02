@@ -30,7 +30,7 @@ from charmlibs.interfaces.service_mesh import (
     PolicyTargetType,
 )
 from helpers import APP_NAME, AuthPolicy
-from jubilant import Juju, all_active
+from jubilant import Juju, all_active, all_agents_idle
 from lightkube import Client
 from lightkube.models.meta_v1 import ObjectMeta
 from tenacity import retry, stop_after_delay, wait_exponential
@@ -108,7 +108,7 @@ def test_deploy_beacon(
         config={"model-on-mesh": "true"},
     )
     juju.wait(
-        lambda s: all_active(s, APP_NAME),
+        lambda s: all_agents_idle(s, APP_NAME) and all_active(s, APP_NAME),
         timeout=1000,
         delay=5,
         successes=3,
