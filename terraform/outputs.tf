@@ -2,13 +2,15 @@ output "app_name" {
   value = juju_application.istio_beacon.name
 }
 
-output "endpoints" {
+output "provides" {
   value = {
-    # Requires
-    charm_tracing = "charm-tracing"
-
-    # Provides
     service_mesh     = "service-mesh"
     metrics_endpoint = "metrics-endpoint"
+  }
+}
+
+output "requires" {
+  value = {
+    charm_tracing = "charm-tracing"
   }
 }
