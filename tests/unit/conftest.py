@@ -39,7 +39,7 @@ def mock_lib_lightkube_client(request):
         yield
     else:
         # patch Client usage in service_mesh library
-        with patch("charms.istio_beacon_k8s.v0.service_mesh.Client") as mocked_lightkube_client:
+        with patch("lightkube.Client") as mocked_lightkube_client:
             yield mocked_lightkube_client
 
 

@@ -10,28 +10,41 @@ import time
 from typing import Dict, List
 
 import ops
-from charmed_service_mesh_helpers import charm_kubernetes_label
-from charmed_service_mesh_helpers.models import (
+from canonical_service_mesh.k8s.resource_manager import (
+    KubernetesResourceManager,
+    PolicyResourceManager,
+    create_charm_default_labels,
+)
+from canonical_service_mesh.k8s.types.istio import AuthorizationPolicy
+from canonical_service_mesh.models import (
     AllowedRoutes,
-    AuthorizationPolicySpec,
-    IstioWaypointResource,
-    IstioWaypointSpec,
     Listener,
     Metadata,
+)
+from canonical_service_mesh.models import (
+    IstioGatewayResource as IstioWaypointResource,
+)
+from canonical_service_mesh.models import (
+    IstioGatewaySpec as IstioWaypointSpec,
+)
+from canonical_service_mesh.models.istio import (
+    AuthorizationPolicySpec,
     Rule,
     WorkloadSelector,
 )
-from charms.istio_beacon_k8s.v0.service_mesh import (
+from canonical_service_mesh.utils import charm_kubernetes_label, generate_telemetry_labels
+from canonical_service_mesh.utils.istio import (
     POLICY_RESOURCE_TYPES,
+    label_configmap_name_template,
+    reconcile_charm_labels,
+)
+from charmlibs.interfaces.service_mesh import (
     MeshPolicy,
     MeshType,
-    PolicyResourceManager,
     ServiceMeshProvider,
     UnitPolicy,
     build_mesh_policies,
     get_data_from_cmr_relation,
-    label_configmap_name_template,
-    reconcile_charm_labels,
 )
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.tempo_coordinator_k8s.v0.charm_tracing import trace_charm
@@ -47,8 +60,6 @@ from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.apps_v1 import Deployment
 from lightkube.resources.autoscaling_v2 import HorizontalPodAutoscaler
 from lightkube.resources.core_v1 import Namespace
-from lightkube_extensions.batch import KubernetesResourceManager, create_charm_default_labels
-from lightkube_extensions.types import AuthorizationPolicy
 from ops.model import ActiveStatus, MaintenanceStatus
 from ops.pebble import ChangeError, Layer
 
@@ -386,8 +397,8 @@ class IstioBeaconCharm(ops.CharmBase):
         )
         gateway_resource = RESOURCE_TYPES["Gateway"]
         return gateway_resource(
-            metadata=ObjectMeta.from_dict(gateway.metadata.model_dump()),
-            spec=gateway.spec.model_dump(),
+            metadata=ObjectMeta.from_dict(gateway.metadata.model_dump(exclude_none=True)),
+            spec=gateway.spec.model_dump(exclude_none=True),
         )
 
     def _construct_hpa(self, unit_count: int) -> HorizontalPodAutoscaler:
@@ -592,21 +603,6 @@ class IstioBeaconCharm(ops.CharmBase):
     def format_labels(label_dict: Dict[str, str]) -> str:
         """Format a dictionary into a comma-separated string of key=value pairs."""
         return ",".join(f"{key}={value}" for key, value in label_dict.items())
-
-
-def generate_telemetry_labels(
-    app_name: str, model_name: str
-) -> Dict[str, str]:
-    """Generate telemetry labels for the application, ensuring it is always <=63 characters and usually unique."""
-    telemetry_key = charm_kubernetes_label(
-        model_name=model_name,
-        app_name=app_name,
-        prefix="charms.canonical.com/",
-        suffix=".telemetry",
-    )
-    return {
-        telemetry_key: "aggregated",
-    }
 
 
 if __name__ == "__main__":
