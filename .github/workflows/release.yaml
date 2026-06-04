@@ -22,3 +22,6 @@ jobs:
     with:
       default-track: dev
       automatically-retry-hooks: true # A fix for #8
+      provider: 'microk8s'
+      # remove it when this is resolved: https://github.com/canonical/charmcraft/issues/2707
+      charmcraft-channel: 'latest/beta'
