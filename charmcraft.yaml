@@ -3,7 +3,7 @@ type: charm
 title: Istio Beacon
 summary: A beacon charm used for joining the Istio service mesh.
 description: |
-  The istio-beacon-k8s charm facilitated adding other charms to the Istio service mesh.
+  The istio-beacon-k8s charm facilitates adding other charms to the Istio service mesh.
   The operator is designed to be used in conjunction with istio-k8s to deploy and
   configure Istio using Juju.
 
