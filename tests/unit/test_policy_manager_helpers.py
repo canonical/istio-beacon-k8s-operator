@@ -4,15 +4,15 @@
 # See LICENSE file for licensing details.
 
 import pytest
-from ops.testing import Harness
-
-from charm import IstioBeaconCharm
-from lib.charms.istio_beacon_k8s.v0.service_mesh import (
+from canonical_service_mesh.utils.istio._policy_builder import _generate_network_policy_name
+from charmlibs.interfaces.service_mesh import (
     Endpoint,
     MeshPolicy,
     PolicyTargetType,
-    _generate_network_policy_name,
 )
+from ops.testing import Harness
+
+from charm import IstioBeaconCharm
 
 
 @pytest.fixture()

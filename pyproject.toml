@@ -3,13 +3,13 @@
 [project]
 name = "istio-beacon-k8s"
 version = "0.0"
-requires-python = "~=3.8"
+requires-python = ">=3.10"
 
 dependencies = [
-    "charmed-service-mesh-helpers>=0.2.0",
+    "canonical-service-mesh>=0.0.2",
+    "charmlibs-interfaces-service-mesh",
     "ops~=2.5",
     "pydantic>=2",
-    "lightkube-extensions>=1.0.0",
     "cosl",
     "opentelemetry-exporter-otlp-proto-http==1.21.0",
 ]

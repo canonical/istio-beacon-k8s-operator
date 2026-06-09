@@ -7,7 +7,7 @@ import logging
 import time
 
 import pytest
-from charmed_service_mesh_helpers import charm_kubernetes_label
+from canonical_service_mesh.utils import charm_kubernetes_label
 from helpers import (
     APP_NAME,
     get_hpa,
